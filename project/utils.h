@@ -16,4 +16,6 @@ void getmul(const double *val, const double *vec, const int *rIndex,
 
 void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n);
 
-void dprintArray(int* a, int len);
+void dprintArrayInt(int* a, int len);
+
+void dprintArrayDouble(double* a, int len);

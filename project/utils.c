@@ -63,8 +63,16 @@ void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n)
 }
 
 
-void dprintArray(int* a, int len){
-	for (int i=0; i<len; i++)
+void dprintArrayInt(int* a, int len){
+	int i;
+	for (i=0; i<len; i++)
         fprintf(stdout, "%d\t", a[i]);
+    printf("\n");
+}
+
+void dprintArrayDouble(double* a, int len){
+	int i;
+	for (i=0; i<len; i++)
+        fprintf(stdout, "%lg\t", a[i]);
     printf("\n");
 }
