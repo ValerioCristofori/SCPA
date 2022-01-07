@@ -1,5 +1,0 @@
-/home/valerio/magistrale/scpa/SCPA/project/CMakeFiles/edit_cache.dir
-/home/valerio/magistrale/scpa/SCPA/project/CMakeFiles/rebuild_cache.dir
-/home/valerio/magistrale/scpa/SCPA/project/cuda/CMakeFiles/cuda-CSR.dir
-/home/valerio/magistrale/scpa/SCPA/project/cuda/CMakeFiles/edit_cache.dir
-/home/valerio/magistrale/scpa/SCPA/project/cuda/CMakeFiles/rebuild_cache.dir

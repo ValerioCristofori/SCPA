@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -rdynamic CMakeFiles/cuda-CSR.dir/cuda-CSR_generated_cuda-CSR.cu.o -o cuda-CSR  /opt/cuda/lib64/libcudart_static.a -ldl -lrt -lpthread 
