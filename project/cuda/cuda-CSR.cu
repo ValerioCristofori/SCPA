@@ -3,8 +3,8 @@
 #include <cuda_runtime.h>  // For CUDA runtime API
 #include <helper_cuda.h>  // For checkCudaError macro
 #include <helper_timer.h>  // For CUDA SDK timers
-#include "mmio.h"
-#include "utils.h"
+#include "libraries/mmio.h"
+#include "libraries/utils.h"
 
 // What is a good initial guess for XBD and YBD (both
 // greater than 1) ?
@@ -19,16 +19,14 @@
 const dim3 BLOCK_DIM(BLOCK_SIZE);
 
 
-
-texture<float, 1, cudaReadModeElementType> mainVecTexRef;
-
-__global__ void kernel_csr(const float * AS, //values
+__global__ void kernel_csr(const double * AS, //values
                                     const int * JA, //idx of column
                                     const int * IRP, //ptrs to rows
-                                    float * results,
+                                    const double * X, //vector for the product
+                                    double * results,
                                     const int num_rows)
 {
-    __shared__ float sdata[ BLOCK_SIZE + 16];                    // padded to avoid reduction ifs
+    __shared__ double sdata[ BLOCK_SIZE + 16];                    // padded to avoid reduction ifs
     __shared__ int ptrs[ BLOCK_SIZE / WARP_SIZE ][2];
     
     const int thread_id   = BLOCK_SIZE * blockIdx.x + threadIdx.x;  // global thread index
@@ -46,13 +44,13 @@ __global__ void kernel_csr(const float * AS, //values
         const int row_end   = ptrs[warp_lane][1];            //same as: row_end   = IRP[row+1];
 
         // compute local sum
-        float sum = 0;
+        double sum = 0;
         for(int j = row_start + thread_lane; j < row_end; j += WARP_SIZE)
         {
-            sum += AS[j] * tex1Dfetch(mainVecTexRef,JA[j]);
+            sum += AS[j] * X[JA[j]];
         }
 
-        volatile float* smem = sdata;
+        volatile double* smem = sdata;
         smem[threadIdx.x] = sum; __syncthreads(); 
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x + 16];
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x +  8];
@@ -68,16 +66,16 @@ __global__ void kernel_csr(const float * AS, //values
 }
 
 
+
 int main(int argc, char *argv[])
 {
-	int ret_code;
     MM_typecode matcode;
     FILE *f;
     int M, N, nz, xdim;  
     int i, *I, *J, *IRP;
-    float *AS, *x, *res, *vIndex;
+    double *AS, *X, *res, *vIndex;
     int *d_JA, *d_IRP;
-    float *d_AS, *d_res;
+    double *d_AS, *d_X, *d_res;
 
 	if (argc < 3)
 	{
@@ -110,7 +108,7 @@ int main(int argc, char *argv[])
 
     /* find out size of sparse matrix */
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+    if ( mm_read_mtx_crd_size(f, &M, &N, &nz) !=0)
         exit(1);
 
 
@@ -118,7 +116,7 @@ int main(int argc, char *argv[])
 
     I = (int *) malloc(nz * sizeof(int));
     J = (int *) malloc(nz * sizeof(int));
-    AS = (float *) malloc(nz * sizeof(float));
+    AS = (double *) malloc(nz * sizeof(double));
 
 
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
@@ -149,10 +147,10 @@ int main(int argc, char *argv[])
         printf("dimension vector too small!\n");
         exit(1);
     }
-    x = (float*)malloc(xdim * sizeof(float));
+    X = (double*)malloc(xdim * sizeof(double));
     for (i = 0; i<xdim; i++)
     {
-        fscanf(f, "%lg\n", &x[i]);
+        fscanf(f, "%lg\n", &X[i]);
     }
 
     if (f != stdin) fclose(f);
@@ -160,17 +158,17 @@ int main(int argc, char *argv[])
 
     /* preprocessing the matrix */
     //the original calculation result
-    float* res_seq = (float*)malloc(M*sizeof(float));
-    memset(res_seq, 0, M*sizeof(float));
+    double* res_seq = (double*)malloc(M*sizeof(double));
+    memset(res_seq, 0, M*sizeof(double));
 
-    getmul(AS, x, I, J, nz, res_seq);
+    getmul(AS, X, I, J, nz, res_seq);
 
     //preprocess the dataset to make the calculation can be parallelized
-    vIndex = (float*)malloc(nz*sizeof(float));
-    memset(vIndex, 0, nz*sizeof(float));
+    vIndex = (double*)malloc(nz*sizeof(double));
+    memset(vIndex, 0, nz*sizeof(double));
     for (i = 0; i < nz; i++)
     {
-        vIndex[i] = (float)I[i] * N + J[i];
+        vIndex[i] = (double)I[i] * N + J[i];
         if (vIndex[i] < 0)
         {   
                printf("Error!\n");
@@ -195,23 +193,25 @@ int main(int argc, char *argv[])
     // update last entry in IRP array with the greater one
     IRP[M] = nz + 1;
 
-
-    float flopcnt=2.e-6*M*N;
+    double flopcnt=2.e-6*M*N;
     // Calculate the dimension of the grid of blocks (1D) needed to cover all
     // entries in the matrix and output vector
-    const dim3 GRID_DIM(M,1);
+    const dim3 GRID_DIM((M - 1 + BLOCK_DIM.x)/ BLOCK_DIM.x  ,1);
 
     // setup data to send to the device
-    checkCudaErrors(cudaMalloc((void**) &d_AS, nz*sizeof(float)));
+    checkCudaErrors(cudaMalloc((void**) &d_AS, nz*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_JA, nz*sizeof(int)));
     checkCudaErrors(cudaMalloc((void**) &d_IRP, (M+1)*sizeof(int)));
-    checkCudaErrors(cudaMalloc((void**) &d_res, M*sizeof(float)));
+    checkCudaErrors(cudaMalloc((void**) &d_X, M*sizeof(double)));
+    checkCudaErrors(cudaMalloc((void**) &d_res, M*sizeof(double)));
 
 
     // copy arrays from the host (CPU) to the device (GPU)
-    checkCudaErrors(cudaMemcpy(d_AS, AS, nz*sizeof(float), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_AS, AS, nz*sizeof(double), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_JA, J, nz*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_IRP, IRP, (M+1)*sizeof(int), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_X, X, M*sizeof(double), cudaMemcpyHostToDevice));
+
 
     // start timer
     // Create the CUDA SDK timer.
@@ -220,28 +220,30 @@ int main(int argc, char *argv[])
 
     timer->start();
 
-    kernel_csr<<<GRID_DIM, BLOCK_DIM>>>(d_AS, d_JA, d_IRP, d_res, M);
+    kernel_csr<<<GRID_DIM, BLOCK_DIM>>>(d_AS, d_JA, d_IRP, d_X, d_res, M);
     checkCudaErrors(cudaDeviceSynchronize());
 
     timer->stop();
-    float gpuflops=flopcnt/ timer->getTime();
+    double gpuflops=flopcnt/ timer->getTime();
     std::cout << "  GPU time: " << timer->getTime() << " ms." << " GFLOPS " << gpuflops<<std::endl;
 
     // Download the resulting vector d_res from the device and store it in res.
-    res = (float*)malloc(M*sizeof(float));
-    memset(res, 0, M*sizeof(float));
-    checkCudaErrors(cudaMemcpy(res, d_res, M*sizeof(float),cudaMemcpyDeviceToHost));
+    res = (double*)malloc(M*sizeof(double));
+    memset(res, 0, M*sizeof(double));
+    checkCudaErrors(cudaMemcpy(res, d_res, M*sizeof(double),cudaMemcpyDeviceToHost));
 
 
-    // check the result if the same
-    if (!checkerror(res, res_seq, M))
-    {
-        printf("Calculation Error!\n");
-        exit(1);
+    // Now let's check if the results are the same.
+    double reldiff = 0.0f;
+    double diff = 0.0f;
+  
+    for (i = 0; i < M; ++i) {
+        double maxabs = std::max(std::abs(res_seq[i]),std::abs(res[i]));
+        if (maxabs == 0.0) maxabs=1.0;
+        reldiff = std::max(reldiff, std::abs(res_seq[i] - res[i])/maxabs);
+        diff = std::max(diff, std::abs(res_seq[i] - res[i]));
     }
-    else {
-        printf(" Test Result Passed ... \n");
-    }
+    std::cout << "Max diff = " << diff << "  Max rel diff = " << reldiff << std::endl;
 
     /* Print out the result in a file -> output.txt */
 
@@ -264,6 +266,7 @@ int main(int argc, char *argv[])
     checkCudaErrors(cudaFree(d_AS));
     checkCudaErrors(cudaFree(d_JA));
     checkCudaErrors(cudaFree(d_IRP));
+    checkCudaErrors(cudaFree(d_X));
     checkCudaErrors(cudaFree(d_res));
 
     free(res_seq);
@@ -272,5 +275,6 @@ int main(int argc, char *argv[])
     free(AS);
     free(I);
     free(J);
+    free(X);
     free(IRP);
 }

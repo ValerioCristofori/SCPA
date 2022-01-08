@@ -8,7 +8,6 @@
 
 int main(int argc, char *argv[])
 {
-    int ret_code;
     MM_typecode matcode;
     FILE *f;
     int M, N, nz, xdim;  
@@ -46,7 +45,7 @@ int main(int argc, char *argv[])
 
     /* find out size of sparse matrix */
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+    if ( mm_read_mtx_crd_size(f, &M, &N, &nz) !=0)
         exit(1);
 
 
