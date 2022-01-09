@@ -19,15 +19,55 @@
 const dim3 BLOCK_DIM(BLOCK_SIZE);
 
 
-
 __device__ double ellpack_device(const double * AS,
                               const int * JA,
                               const double * X,
-                              const int maxEl,
+                              const int * MAXNZ,
                               const int row,
                               const int numRows)
 {
-    const int num_rows = numRows;
+    const int num_rows =numRows;
+    int maxnz = MAXNZ[row];
+    double dot=0;   
+    int col=-1;
+    double val=0;
+    int i=0;
+    for(i=0; i<maxnz;i++)
+    {
+        col=JA[num_rows*i+row];
+        val= AS[num_rows*i+row];
+        dot+=val*X[col];
+        /*col=JA[row*maxnz+i]; //non puo' funzionare perche' maxnz cambia e moltiplica male
+        val= AS[row*maxnz+i];
+        dot+=val*X[col];*/
+    }
+    return dot;
+}
+
+__global__ void kernel_ellpack(const double * AS,
+                                        const int * JA, 
+                                        const int * MAXNZ,
+                                        const double * X,
+                                        double * results,
+                                        const int numRows)
+{
+    
+    const int row   = blockDim.x * blockIdx.x + threadIdx.x;  // global thread index
+    if(row<numRows)
+    {
+        double dot = ellpack_device(AS,JA,X,MAXNZ,row,numRows);
+        results[row]=dot;
+    }   
+}
+
+
+
+/*__device__ double ellpack_device(const double * AS,
+                              const int * JA,
+                              const double * X,
+                              const int maxEl,
+                              const int row)
+{
     //int maxEl = rowLength[row];
     double dot=0;   
     int col=-1;
@@ -35,8 +75,8 @@ __device__ double ellpack_device(const double * AS,
     int i=0;
     for(i=0; i<maxEl;i++)
     {
-        col=JA[num_rows*i+row];
-        val= AS[num_rows*i+row];
+        col=JA[maxEl*row+i];
+        val= AS[maxEl*row+i];
         dot+=val*X[col];
     }
     return dot;
@@ -53,11 +93,11 @@ __global__ void kernel_ellpack(const double * AS, //values
     const int row   = blockDim.x * blockIdx.x + threadIdx.x;  // global thread index
     if(row<numRows)
     {
-        double dot = ellpack_device(AS, JA, X, rowLength, row, numRows);
+        double dot = ellpack_device(AS, JA, X, rowLength, row);
         results[row]=dot;
     }	
 }
-
+*/
 
 
 
@@ -67,13 +107,13 @@ int main(int argc, char *argv[])
     MM_typecode matcode;
     FILE *f;
     int M, N, nz, xdim;
-    int  x = 0, y = 0, maxnz = 0;
-    int i, *I, *J, *JA;
-    double *AS, *X, *res, *vIndex, *val;
+    int  x = 0, y = 0, offset = 0, maxnz = 0;
+    int i, j, *I, *J, *JA, *JA_t, *MAXNZ;
+    double *AS, *AS_t, *X, *res, *vIndex, *val;
     double value = 0.0;
     
-    int *d_JA;
-    double *d_AS, *d_X, *d_res;
+    int *d_JA_t, *d_MAXNZ;
+    double *d_AS_t, *d_X, *d_res;
 
     if (argc < 3)
     {
@@ -196,17 +236,22 @@ int main(int argc, char *argv[])
         printf("MaxNZ Error!\n");
         exit(1);
     }
+
     
     // reserve JA and AS 2D arrays
     JA = (int *) malloc((maxnz * M) * sizeof(int));
     memset(JA, -1, (maxnz*M)*sizeof(int));
     AS = (double *) malloc((maxnz * M) * sizeof(double));
     memset(AS, 0, (maxnz*M)*sizeof(double));
+    MAXNZ = (int *) malloc( M* sizeof(int));
+    memset(MAXNZ, -1, M*sizeof(int));
 
 
     // populate the 2D arrays
     int prev = 0;
     int count = 0;
+    int count_row = 0;
+    offset = 0;
     for ( int h = 0; h < nz; h++ )
     {
         x = I[h];
@@ -214,10 +259,15 @@ int main(int argc, char *argv[])
         if( prev == x ){
             count++;
         }else{
+            //new row
             // fill the rest of row with the latest value
             for( int k = 0; k < maxnz - count; k++ ){
                 JA[prev*maxnz + count + k] = y;
             }
+            MAXNZ[count_row] = count;
+            count_row++;
+            offset += count; //add prev row length to the offset 
+
             count = 0;
 
             prev = x;
@@ -237,7 +287,41 @@ int main(int argc, char *argv[])
         JA[x*maxnz + count] = y;
         count++;
     }
+    MAXNZ[count_row] = count;
 
+    //transposition vector AS e JA
+    //reserve memory
+    JA_t = (int *) malloc((maxnz*M) * sizeof(int));
+    memset(JA_t, -1, (maxnz*M)*sizeof(int));
+    AS_t = (double *) malloc((maxnz*M) * sizeof(double));
+    memset(AS_t, 0, (maxnz*M)*sizeof(double));
+
+    offset = 0;
+    for(i=0; i<M; i++)
+    {
+        for(j=0; j<maxnz; j++)
+        {
+            JA_t[j*M+i]=JA[i*maxnz+j];
+            AS_t[j*M+i]=AS[i*maxnz+j];
+        }
+    }
+
+    /*printf("AS:\n");
+    dprintArrayDouble(AS, maxnz*M);
+    printf("\n\n");
+    printf("JA:\n");
+    dprintArrayInt(JA, maxnz*M);
+    printf("\n\n");
+    printf("AS trasposto:\n");
+    dprintArrayDouble(AS_t, maxnz*M);
+    printf("\n\n");
+    printf("JA trasposto:\n");
+    dprintArrayInt(JA_t, maxnz*M);
+    printf("\n\n");
+    printf("X:\n");
+    dprintArrayDouble(X, M);
+    printf("\n\n");
+    dprintArrayInt(MAXNZ, M);*/
 
 
     double flopcnt=2.e-6*M*N;
@@ -246,15 +330,17 @@ int main(int argc, char *argv[])
     const dim3 GRID_DIM((M - 1 + BLOCK_DIM.x)/ BLOCK_DIM.x  ,1);
 
     // setup data to send to the device
-    checkCudaErrors(cudaMalloc((void**) &d_AS, (maxnz * M)*sizeof(double)));
-    checkCudaErrors(cudaMalloc((void**) &d_JA, (maxnz * M)*sizeof(int)));
+    checkCudaErrors(cudaMalloc((void**) &d_AS_t, (maxnz*M)*sizeof(double)));
+    checkCudaErrors(cudaMalloc((void**) &d_JA_t, (maxnz*M)*sizeof(int)));
+    checkCudaErrors(cudaMalloc((void**) &d_MAXNZ, M*sizeof(int)));
     checkCudaErrors(cudaMalloc((void**) &d_X, M*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_res, M*sizeof(double)));
 
 
     // copy arrays from the host (CPU) to the device (GPU)
-    checkCudaErrors(cudaMemcpy(d_AS, AS, nz*sizeof(double), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_JA, J, nz*sizeof(int), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_AS_t, AS_t, (maxnz*M)*sizeof(double), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_JA_t, JA_t, (maxnz*M)*sizeof(int), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_MAXNZ, MAXNZ, M*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_X, X, M*sizeof(double), cudaMemcpyHostToDevice));
 
 
@@ -265,7 +351,7 @@ int main(int argc, char *argv[])
 
     timer->start();
 
-    kernel_ellpack<<<GRID_DIM, BLOCK_DIM>>>(d_AS, d_JA, maxnz, d_X, d_res, M);
+    kernel_ellpack<<<GRID_DIM, BLOCK_DIM>>>(d_AS_t, d_JA_t, d_MAXNZ, d_X, d_res, M);
     checkCudaErrors(cudaDeviceSynchronize());
 
     timer->stop();
@@ -277,26 +363,28 @@ int main(int argc, char *argv[])
     memset(res, 0, M*sizeof(double));
     checkCudaErrors(cudaMemcpy(res, d_res, M*sizeof(double),cudaMemcpyDeviceToHost));
 
-    dprintArrayDouble(res, M);
+    /*dprintArrayDouble(res, M);
     printf("\n\n");
-    dprintArrayDouble(res_seq, M);
+    dprintArrayDouble(res_seq, M);*/
 
-    // check the result if the same
-    if (!checkerror(res, res_seq, M))
-    {
-        printf("Calculation Error!\n");
-        exit(1);
+    // Now let's check if the results are the same.
+    double reldiff = 0.0f;
+    double diff = 0.0f;
+  
+    for (i = 0; i < M; ++i) {
+        double maxabs = std::max(std::abs(res_seq[i]),std::abs(res[i]));
+        if (maxabs == 0.0) maxabs=1.0;
+        reldiff = std::max(reldiff, std::abs(res_seq[i] - res[i])/maxabs);
+        diff = std::max(diff, std::abs(res_seq[i] - res[i]));
     }
-    else {
-        printf(" Test Result Passed ... \n");
-    }
+    std::cout << "Max diff = " << diff << "  Max rel diff = " << reldiff << std::endl;
 
     /* Print out the result in a file -> output.txt */
 
     if ((f = fopen("output.txt", "w")) == NULL)
     {
         printf("Fail to open the output file!\n");
-        exit(1);
+        goto exit;
     }
     for (i = 0; i<xdim; i++)
     {
@@ -304,13 +392,13 @@ int main(int argc, char *argv[])
     }
     fclose(f);
 
-
+exit:
     // free all
 
     delete timer;
 
-    checkCudaErrors(cudaFree(d_AS));
-    checkCudaErrors(cudaFree(d_JA));
+    checkCudaErrors(cudaFree(d_AS_t));
+    checkCudaErrors(cudaFree(d_JA_t));
     checkCudaErrors(cudaFree(d_X));
     checkCudaErrors(cudaFree(d_res));
 
@@ -320,6 +408,8 @@ int main(int argc, char *argv[])
     free(val);
     free(JA);
     free(AS);
+    free(JA_t);
+    free(AS_t);
     free(I);
     free(J);
     free(res);

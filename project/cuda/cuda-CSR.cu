@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
     if ((f = fopen("output.txt", "w")) == NULL)
     {
         printf("Fail to open the output file!\n");
-        exit(1);
+        goto exit;
     }
     for (i = 0; i<xdim; i++)
     {
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
     }
     fclose(f);
 
-
+exit:
     // free all
 
     delete timer;
