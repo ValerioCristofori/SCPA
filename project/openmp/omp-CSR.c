@@ -15,91 +15,14 @@ int main(int argc, char *argv[])
     int i, j, *I, *J, *IRP;
     double *val, *x, *res, *vIndex;
 
-    if (argc < 4)
-	{
-		fprintf(stderr, "Usage: %s [martix-market-filename] [vector-filename] [num-threads]\n", argv[0]);
-		exit(1);
-	}
-    else    
-    { 
-        if ((f = fopen(argv[1], "r")) == NULL) 
-            exit(1);
-    }
-
-    if (mm_read_banner(f, &matcode) != 0)
-    {
-        printf("Could not process Matrix Market banner.\n");
-        exit(1);
-    }
 
 
-    /*  This is how one can screen matrix types if their application */
-    /*  only supports a subset of the Matrix Market data types.      */
-
-    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
-            mm_is_sparse(matcode) )
-    {
-        printf("Sorry, this application does not support ");
-        printf("Market Market type: [%s]\n", mm_typecode_to_str(matcode));
-        exit(1);
-    }
-
-    /* find out size of sparse matrix */
-
-    if ( mm_read_mtx_crd_size(f, &M, &N, &nz) !=0)
-        exit(1);
 
 
-    /* reseve memory for matrices */
-
-    I = (int *) malloc(nz * sizeof(int));
-    J = (int *) malloc(nz * sizeof(int));
-    val = (double *) malloc(nz * sizeof(double));
 
 
-    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
-    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
-    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
-
-    for (i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
-    }
-
-    if (f !=stdin) fclose(f);
 
 
-    /* Open and load the vector input for the product */  
-    if ((f = fopen(argv[2], "r")) == NULL)
-    {
-        printf("Fail to open the input vector file!\n");
-        exit(1);
-    }
-    fscanf(f, "%d\n", &xdim);
-    if (xdim > M)
-    {
-        xdim = M;
-    } else {
-        printf("dimension vector too small!\n");
-        exit(1);
-    }
-    x = (double*)malloc(xdim * sizeof(double));
-    for (i = 0; i<xdim; i++)
-    {
-        fscanf(f, "%lg\n", &x[i]);
-    }
-
-    if (f != stdin) fclose(f);
-
-
-    /* preprocessing the matrix */
-    //the original calculation result
-    double* res_seq = (double*)malloc(M*sizeof(double));
-    memset(res_seq, 0, M*sizeof(double));
-
-    getmul(val, x, I, J, nz, res_seq);
 
     //preprocess the dataset to make the calculation can be parallelized
     vIndex = (double*)malloc(nz*sizeof(double));
