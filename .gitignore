@@ -1,5 +1,5 @@
-project/tests/matrix/
-project/tests/vectors/
+project/workspace/data/*
+
 
 **/CMakeLists.txt.user
 **/CMakeCache.txt

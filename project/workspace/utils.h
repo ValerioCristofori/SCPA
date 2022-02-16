@@ -67,12 +67,9 @@ void dprintArrayDouble(double* a, int len);
 
 
 
-
-
 int load_matrix(char *matrix_filename, struct matrix* mat);
 
 int load_vector(char *vector_filename, struct vector* vec, int M);
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, int mode, int num_threads);
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads);
 
-int calculate_prod_test(struct matrix *mat, struct vector* vec, double *res_seq, int num_threads, FILE *fpt);
