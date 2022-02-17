@@ -1,7 +1,11 @@
 #!/bin/sh
-rm Makefile
-rm *.cmake
-rm -R CMakeFiles
-rm -R CMakeCache.txt
-cmake .
+./clean.sh
+
+cmake -DCMAKE_CUDA_ARCHITECTURES=75 .
+
+cd ./lib
 make
+cd ..
+
+make
+

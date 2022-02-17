@@ -1,15 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <omp.h> 
+
 #include "lib/utils.h"
 
 #define FILENAME "test-metrics.csv"
-
-
-
-int             num_threads;
-
 
 
 int load_mat_vec(char* mat_filename, char* vector_filename, struct matrix* mat, struct vector* vec){

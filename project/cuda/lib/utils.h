@@ -24,6 +24,7 @@ struct Csr{
 	double 	*AS;
 	int 	  M;
 	int 	  N;
+	int 		nz;
 };
 
 
@@ -32,6 +33,7 @@ struct Ellpack{
 	double 	*AS_t;
 	int 	  M;
 	int 	  N;
+	int 		maxnz;
 	int     *MAXNZ;
 };
 

@@ -16,8 +16,8 @@ do
 	$OMP_DIR/main -ompCSR $mat $vector $THREADS
 	$OMP_DIR/main -ompELLPACK $mat $vector $THREADS
 
-  #$CUDA_DIR/main -cudaCSR $mat $vector
-  #$CUDA_DIR/main -cudaELLPACK $mat $vector
+  $CUDA_DIR/main -cudaCSR $mat $vector
+  $CUDA_DIR/main -cudaELLPACK $mat $vector
 
   else
     echo "Warning: Some problem with \"$mat\""
