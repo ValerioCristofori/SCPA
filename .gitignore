@@ -1,4 +1,4 @@
-project/workspace/data/*
+project/data/*
 
 
 **/CMakeLists.txt.user
@@ -6,7 +6,6 @@ project/workspace/data/*
 **/CMakeFiles
 **/CMakeScripts
 **/Testing
-**/Makefile
 **/cmake_install.cmake
 **/install_manifest.txt
 **/compile_commands.json

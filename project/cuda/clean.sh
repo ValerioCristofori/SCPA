@@ -3,8 +3,8 @@ rm Makefile
 rm *.cmake
 rm -R CMakeFiles
 rm -R CMakeCache.txt
-rm output.txt cuda-CSR cuda-ELLPACK
+rm main
 
-cd libraries
+cd lib
 ./clean.sh
 cd ..

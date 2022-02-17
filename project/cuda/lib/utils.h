@@ -28,17 +28,18 @@ struct Csr{
 
 
 struct Ellpack{
-	int   	*JA;
-	double 	*AS;
+	int   	*JA_t;
+	double 	*AS_t;
 	int 	  M;
 	int 	  N;
-	int   maxnz;
+	int     *MAXNZ;
 };
 
 struct Result{
 	double  *res;
 	int 		 len;
-	long    elapsed_time;
+	long     elapsed_time;
+	double 	 gpuflops;
 };
 
 
@@ -49,12 +50,8 @@ typedef struct{
 	long tv_nsec; /* nanoseconds */
 }timespect;
 
-typedef enum{
-  true = 1, false = 0
-}bool;
 
-
-bool checkerror(const double *resp, const double *ress, int dim);
+int checkerror(const double *resp, const double *ress, int dim);
 
 void getmul(struct matrix *mat, struct vector *vec, double* res);
 
@@ -71,5 +68,5 @@ int load_matrix(char *matrix_filename, struct matrix* mat);
 
 int load_vector(char *vector_filename, struct vector* vec, int M);
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads);
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, FILE *fpt);
 

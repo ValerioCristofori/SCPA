@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "utils.h"
+#include "lib/utils.h"
 
 
 struct Csr* preprocess_csr(struct matrix *mat)
@@ -324,11 +324,12 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
 }
 
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads)
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads, FILE *fpt)
 {
     double *res;
     int     len;
-
+    long elapsed_time;
+    int     passed = 0;
     
     
 
@@ -346,7 +347,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
             res = res_serial_csr->res;
             len = res_serial_csr->len;
-            
+            elapsed_time = res_serial_csr->elapsed_time;
 
             free(csr_mat);
             free(res_serial_csr);
@@ -367,6 +368,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
             res = res_omp_csr->res;
             len = res_omp_csr->len;
+            elapsed_time = res_omp_csr->elapsed_time;
 
             free(csr_mat);
 
@@ -385,30 +387,28 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
             res = res_omp_ellpack->res;
             len = res_omp_ellpack->len;
+            elapsed_time = res_omp_ellpack->elapsed_time;
             
 
             free(ellpack_mat);
 
-
-    }else if(!strcmp(mode,"-cudaCSR") ){
-
-            //struct Csr *csr_mat;
-        
-
-    }else if(!strcmp(mode,"-cudaELLPACK") ){
-
-            //struct Ellpack *ellpack_mat;
 
     }
 
     if (!checkerror(res, res_seq, len))
     {
         printf("Calculation Error!\n");
-        return -1;
+
     }
     else {
         printf(" Test Result Passed ... \n");
+        passed = 1;
     }
+
+    /* print on file the entry result */
+    fprintf(fpt,"%s, %ld, 0.0, %d\n", mode, elapsed_time, passed);
+    fflush(fpt);
+
 
     free(res);
     free(res_seq);    

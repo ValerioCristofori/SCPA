@@ -6,4 +6,4 @@ set(lib_files
         mmio.c
         mmio.h
         )
-add_library(libraries ${lib_files})
+add_library(lib ${lib_files})

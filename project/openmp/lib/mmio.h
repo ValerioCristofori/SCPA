@@ -119,14 +119,14 @@ int mm_is_valid(MM_typecode matcode);		/* too complex for a macro */
 /*  high level routines */
 
 int mm_write_mtx_crd(char fname[], int M, int N, int nz, int I[], int J[],
-		 double val[], MM_typecode matcode);
+		 float val[], MM_typecode matcode);
 int mm_read_mtx_crd_data(FILE *f, int M, int N, int nz, int I[], int J[],
-		double val[], MM_typecode matcode);
-int mm_read_mtx_crd_entry(FILE *f, int *I, int *J, double *real, double *img,
+		float val[], MM_typecode matcode);
+int mm_read_mtx_crd_entry(FILE *f, int *I, int *J, float *real, float *img,
 			MM_typecode matcode);
 
 int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
-                double **val_, int **I_, int **J_);
+                float **val_, int **I_, int **J_);
 
 
 
