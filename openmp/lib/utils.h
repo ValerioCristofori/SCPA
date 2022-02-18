@@ -2,45 +2,45 @@
 
 
 struct matrix{
-	int 			*I;  //row index
-	int 			*J;  //column index
-	double 			*val;
-	int 			nz;
-	int 			 M;
-	int 			 N;
+	int 				*I;  			// row index
+	int 				*J;  			// column index
+	double 			*val;			// array values
+	int 				nz;				// number of non-zeros
+	int 				M;				// number of rows
+	int 				N;      	// number of cols
 };
 
 
 struct vector{
-	int 			xdim; 
-	double 			*X;
+	int 			xdim;   // array length
+	double 			*X; 	// array values
 };
 
 
 
 struct Csr{
-	int    *IRP;
-	int   	*JA;
-	double 	*AS;
-	int 	  M;
-	int 	  N;
+	int    	 *IRP;		// vector of pointers at the beginning of each line
+	int   	 *JA;		// column index vector
+	double 	 *AS;		// coefficients vector
+	int 	  M;		// number of rows
+	int 	  N;		// number of cols
 };
 
 
 struct Ellpack{
-	int   	*JA;
-	double 	*AS;
-	int 	  M;
-	int 	  N;
-	int   maxnz;
+	int   	   	*JA;	// column index vector: transposed matrix
+	double 	   	*AS;	// coefficients vector: transposed matrix
+	int 	  		M;		// number of rows
+	int 	  		N;		// number of columns
+	int 			maxnz;	// the maximum of non-zeros per row
 };
 
 struct Result{
-	double  *res;
-	int 		 len;
-	double    elapsed_time;
+	double     					*res;			// result array
+	int 								 len;			// length of the array
+	double     	elapsed_time;			// time in calculation
+	double 	 				gpuflops;			// floating point ops per sec
 };
-
 
 
 
@@ -53,6 +53,7 @@ typedef enum{
   true = 1, false = 0
 }bool;
 
+// ---------------- utils ------------------------
 
 bool checkerror(const double *resp, const double *ress, int dim);
 
@@ -66,11 +67,16 @@ void dprintArrayDouble(double* a, int len);
 
 
 
+// ------------------ pre processing ---------------
+
 struct Csr* preprocess_csr(struct matrix *mat);
 
 struct Ellpack* preprocess_ellpack(struct matrix *mat);
 
 
+
+
+// ------------------ calculation -----------------
 
 
 int load_matrix(char *matrix_filename, struct matrix* mat);

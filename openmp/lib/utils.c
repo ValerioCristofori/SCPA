@@ -8,12 +8,12 @@
 
 int load_matrix(char *matrix_filename, struct matrix *mat)
 {
-    MM_typecode matcode;
-    FILE *f;
+    MM_typecode  matcode;
+    FILE 			  *f;
 
-	int nz, M, N;
-	int *I, *J;
-	double *val;
+	int 		nz, M, N;
+	int 		  *I, *J;
+	double 			*val;
 
 	if ((f = fopen(matrix_filename, "r")) == NULL) 
         return -1;
@@ -24,10 +24,6 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
         return -1;
     }
 
-
-    /*  This is how one can screen matrix types if their application */
-    /*  only supports a subset of the Matrix Market data types.      */
-
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
@@ -35,22 +31,16 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
         printf("Market Market type: [%s]\n", mm_typecode_to_str(matcode));
         return -1;
     }
-
-    /* find out size of sparse matrix */
-
+    
+    /* find size of sparse matrix */
     if ( mm_read_mtx_crd_size(f, &M, &N, &nz) !=0)
         return -1;
 
 
-    /* reseve memory for matrices */
+    /* allocate memory for matrix */
     I = (int *) malloc(nz * sizeof(int));
     J = (int *) malloc(nz * sizeof(int));
     val = (double *) malloc(nz * sizeof(double));
-
-
-    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
-    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
-    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
 
     for (int i=0; i<nz; i++)
     {
@@ -71,19 +61,17 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
     mat->N = N;
 
     return 0;
-
 }
 
 
 int load_vector(char *vector_filename, struct vector *vec, int M)
 {
 
-    FILE *f;
-
+    FILE 			  *f;
 	int 			xdim;
 	double 		  	  *X;
 
-	    /* Open and load the vector input for the product */  
+	/* load the vector input for the product */  
     if ((f = fopen(vector_filename, "r")) == NULL)
     {
         printf("Fail to open the input vector file!\n");
@@ -108,13 +96,11 @@ int load_vector(char *vector_filename, struct vector *vec, int M)
     vec->X = X;
     vec->xdim = xdim;
 
-
     return 0;
-
 }
 
 
-
+/* sequential product calculation */
 void getmul(struct matrix *mat, struct vector *vec, double* res)
 {
 	int i; 
@@ -139,6 +125,8 @@ bool checkerror(const double* resp, const double* ress, int dim)
 
 }
 
+/* order input vectors that have the same length n
+    computation time -> O(n*log(n))  */
 void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n)
 {
 	int i, j, m;

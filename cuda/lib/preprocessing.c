@@ -8,14 +8,16 @@ struct Csr* preprocess_csr(struct matrix *mat)
 {
     struct Csr *csr_mat;
 
-    int M = mat->M;
-    int N = mat->N;
-    int nz = mat->nz;
-    int *I = mat->I;
-    int *J = mat->J;
+    int M   = mat->M;
+    int N   = mat->N;
+    int nz  = mat->nz;
+    int *I  = mat->I;
+    int *J  = mat->J;
     double *val = mat->val;
 
     //preprocess the dataset to make the calculation can be parallelized
+    /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
+        of the non-zeros positions */
     double *vIndex = (double*)malloc(nz*sizeof(double));
     memset(vIndex, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
@@ -27,13 +29,13 @@ struct Csr* preprocess_csr(struct matrix *mat)
                return NULL;
             }
     }
-
+    // order values vector through vIndex
     quicksort(val, vIndex, I, J, nz);
 
     int *IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
     memset(IRP, -1, (M+1)*sizeof(int));
 
-
+    /* build IRP vector */
     for (int i = 0; i<nz; i++)
     {
         int tmp = (int)(vIndex[i] / N);
@@ -78,6 +80,8 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     double *val = mat->val;
 
     //preprocess the dataset to make the calculation can be parallelized
+    /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
+        of the non-zeros positions */
     double *vIndex = (double*)malloc(nz*sizeof(double));
     memset(vIndex, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
@@ -89,11 +93,12 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
                return NULL;
             }
     }
-
+    // order values vector through vIndex
     quicksort(val, vIndex, I, J, nz);
 
     free(vIndex);
     
+    // count maxnz in the current matrix 
     int count_nz = 1;
     for (int i = 0; i<nz-1; i++)
     {
@@ -114,7 +119,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
         exit(1);
     }
 
-    // reserve JA and AS 2D arrays
+    // reserve JA and AS and MAXNZ arrays
     int *JA = (int *) malloc((maxnz * M) * sizeof(int));
     memset(JA, 0, (maxnz*M)*sizeof(int));
     double *AS = (double *) malloc((maxnz * M) * sizeof(double));
@@ -123,11 +128,11 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     memset(MAXNZ, -1, M*sizeof(int));
 
 
-    // populate the 2D arrays
-    int x = 0, y = 0;
-    int prev = 0;
-    int count = 0;
-    int count_row = 0;
+    // populate the arrays
+    int x = 0, y = 0;    // temp values: x -> row idx, y -> col idx
+    int prev        = 0; // last row index value
+    int count       = 0; // idx for update JA and AS
+    int count_row   = 0; // num of nz in current row
     for ( int h = 0; h < nz; h++ )
     {
         x = I[h];
@@ -136,7 +141,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
             count++;
         }else{
             //new row
-            MAXNZ[count_row] = count;
+            MAXNZ[count_row] = count; // set number of nz in last row
             count_row++;
 
             count = 0;
@@ -160,6 +165,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     AS_t = (double *) malloc((maxnz*M) * sizeof(double));
     memset(AS_t, 0, (maxnz*M)*sizeof(double));
 
+    // transposition of JA and AS to JA_t and AS_t
     for(int i=0; i<M; i++)
     {
         for(int j=0; j<maxnz; j++)

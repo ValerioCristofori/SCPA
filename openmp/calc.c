@@ -4,24 +4,26 @@
 #include <omp.h>
 #include <sys/time.h>
 
-
-
 #include "lib/utils.h"
+
+/* openmp divides the iteration into chunk and distributes
+    Each thread executes a chunk of iterations
+and then requests another chunk until there are no more chunks available. */
+#define CHUNK_SIZE 1000
 
 
 struct Result* module_serial_csr(struct Csr* csr_mat, struct vector* vec)
 {
-    int         M = csr_mat->M;
+    int           M = csr_mat->M;
     int        *IRP = csr_mat->IRP;
-    int        *JA = csr_mat->JA;
-    double     *AS = csr_mat->AS;
-    double     *X = vec->X;
+    int         *JA = csr_mat->JA;
+    double      *AS = csr_mat->AS;
+    double       *X = vec->X;
 
     printf("\n Start computation ... \n");
     struct timeval start, end;
 
-
-
+    /* allocate memory for result vector */
     double *res = (double*)malloc(M*sizeof(double));
     memset(res, 0, M*sizeof(double));
 
@@ -63,25 +65,25 @@ struct Result* module_omp_csr(struct Csr* csr_mat, struct vector* vec, int threa
 {
     int j, ckey;
 
-    int *IRP = csr_mat->IRP;
-    int *JA = csr_mat->JA;
-    double *AS = csr_mat->AS;
-    double *X = vec->X;
-    int M = csr_mat->M;
+    int     *IRP = csr_mat->IRP;
+    int      *JA = csr_mat->JA;
+    double   *AS = csr_mat->AS;
+    double    *X = vec->X;
+    int        M = csr_mat->M;
 
 
     printf("\n Start computation ... \n");
     struct timeval start, end;
 
+    /* allocate memory for result vector */
     double *res = (double*)malloc(M*sizeof(double));
     memset(res, 0, M*sizeof(double));
     
-    int chunk = 1000;
 
     gettimeofday(&start, NULL);
     #pragma omp parallel num_threads(thread_num)
     {
-    #pragma omp for private( j, ckey ) schedule( dynamic, chunk )
+    #pragma omp for private( j, ckey ) schedule( dynamic, CHUNK_SIZE )
     for( int i=0; i<M; i++ ){
         double result = 0.0;
         for( j = IRP[i]; j <= IRP[i+1]-1; j++ ){
@@ -97,13 +99,11 @@ struct Result* module_omp_csr(struct Csr* csr_mat, struct vector* vec, int threa
 
 
     /* End computation and timer */
-
     printf(" End of computation ... \n \n");
 
     long time = ((end.tv_sec * 1000000 + end.tv_usec)
           - (start.tv_sec * 1000000 + start.tv_usec));
     double elapsed_time = (double)time / 1000;
-
 
     printf(" Total time: %lg milliseconds\n\n",  elapsed_time);
 
@@ -122,25 +122,25 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
 {
     int ja;
 
-    double *X = vec->X;
-    double *AS = ellpack_mat->AS;
-    int   *JA = ellpack_mat->JA;
-    int maxnz = ellpack_mat->maxnz;
-    int M = ellpack_mat->M;
+    double      *X = vec->X;
+    double     *AS = ellpack_mat->AS;
+    int        *JA = ellpack_mat->JA;
+    int      maxnz = ellpack_mat->maxnz;
+    int          M = ellpack_mat->M;
 
     printf("\n Start computation ... \n");
     struct timeval start, end;
 
+    /* allocate memory for result vector */
     double *res = (double*)malloc(M*sizeof(double));
     memset(res, 0, M*sizeof(double));
 
-    int chunk = 1000;
 
     gettimeofday(&start, NULL);
     int j;
     #pragma omp parallel num_threads(thread_num)
     {
-    #pragma omp for private( j, ja ) schedule( dynamic, chunk )
+    #pragma omp for private( j, ja ) schedule( dynamic, CHUNK_SIZE )
     for( int i=0; i<M; i++ ){
         double result = 0.0;
         for( j = 0; j < maxnz; j++ ){
@@ -156,10 +156,7 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
 
 
     /* End computation and timer */
-
     printf(" End of computation ... \n \n");
-
-
 
     long time = ((end.tv_sec * 1000000 + end.tv_usec)
           - (start.tv_sec * 1000000 + start.tv_usec));
@@ -179,25 +176,28 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
 
 int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads, FILE *fpt)
 {
-    double *res;
-    int     len;
-    double  elapsed_time;
-    int     passed = 0;
+    double      *res;         // result of the parallel product
+    int         len;          // len of the result
+    double      elapsed_time; // time spent in the calculation
+    int         passed = 0;   // 1 if the parallelized product is successful 
     
-    
-
+    /* select the right matrix preprocessing and calculation mode
+      with respect to the 'mode' value entered   */
     if( !strcmp(mode,"-serial")){
 
             struct Csr *csr_mat;
 
             printf("Start Serial calculation with CSR...\n");
 
+            /* pre-processing the matrix following CSR format */
             csr_mat = preprocess_csr(mat);
             if( csr_mat == NULL )
                 return -1;
+            
             /* serial calculation with csr */
             struct Result *res_serial_csr = module_serial_csr(csr_mat, vec);
 
+            // build vars for verification and metrics
             res = res_serial_csr->res;
             len = res_serial_csr->len;
             elapsed_time = res_serial_csr->elapsed_time;
@@ -214,12 +214,15 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
             printf("Start OpenMP calculation with CSR with %d Threads...\n", num_threads);
             sprintf(mode, "%s(%d)", mode, num_threads);
 
+            /* pre-processing the matrix following CSR format */
             csr_mat = preprocess_csr(mat);
             if( csr_mat == NULL )
                 return -1;
+            
             /* calculation with csr with OpenMP */
             struct Result *res_omp_csr = module_omp_csr(csr_mat, vec, num_threads);
 
+            // build vars for verification and metrics
             res = res_omp_csr->res;
             len = res_omp_csr->len;
             elapsed_time = res_omp_csr->elapsed_time;
@@ -233,13 +236,15 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
             printf("Start OpenMP calculation with ELLPACK with %d Threads...\n", num_threads);
             sprintf(mode, "%s(%d)", mode, num_threads);
 
-            /* preprocess and build ellpack format */
+            /* preprocess and build ellpack format for matrix */
             ellpack_mat = preprocess_ellpack(mat);
             if( ellpack_mat == NULL )
                 return -1;
+            
             /* calculation with ellpack with OpenMP */
             struct Result *res_omp_ellpack = module_omp_ellpack(ellpack_mat, vec, num_threads);
 
+            // build vars for verification and metrics
             res = res_omp_ellpack->res;
             len = res_omp_ellpack->len;
             elapsed_time = res_omp_ellpack->elapsed_time;
@@ -250,6 +255,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
     }
 
+    // check if parallel calculation is successful done
     if (!checkerror(res, res_seq, len))
     {
         printf("Calculation Error!\n");
