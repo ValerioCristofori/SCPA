@@ -1,5 +1,8 @@
-project/data/*
+data/*
 
+
+**/test-metrics.csv
+**/calc.log
 
 **/CMakeLists.txt.user
 **/CMakeCache.txt

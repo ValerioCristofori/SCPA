@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 
 #include <iostream>
 #include <cuda_runtime.h>  // For CUDA runtime API
@@ -9,6 +8,8 @@
 #include <helper_timer.h>  // For CUDA SDK timers
 
 #include "lib/utils.h"
+
+#define FILENAME "test-metrics.csv"
 
 
 
@@ -21,6 +22,8 @@
 // Size should be at least 1 warp 
 #define BLOCK_SIZE 256
 #define WARP_SIZE        32
+
+#define ERROR_BOUND 0.001
 
 
 const dim3 BLOCK_DIM(BLOCK_SIZE);
@@ -93,9 +96,6 @@ __device__ double ellpack_device(const double * AS,
         col=JA[num_rows*i+row];
         val= AS[num_rows*i+row];
         dot+=val*X[col];
-        /*col=JA[row*maxnz+i]; //non puo' funzionare perche' maxnz cambia e moltiplica male
-        val= AS[row*maxnz+i];
-        dot+=val*X[col];*/
     }
     return dot;
 }
@@ -123,193 +123,6 @@ __global__ void kernel_ellpack(const double * AS,
 
 
 
-struct Csr* preprocess_csr(struct matrix *mat)
-{
-    struct Csr *csr_mat;
-
-    int M = mat->M;
-    int N = mat->N;
-    int nz = mat->nz;
-    int *I = mat->I;
-    int *J = mat->J;
-    double *val = mat->val;
-
-    //preprocess the dataset to make the calculation can be parallelized
-    double *vIndex = (double*)malloc(nz*sizeof(double));
-    memset(vIndex, 0, nz*sizeof(double));
-    for (int i = 0; i < nz; i++)
-    {
-        vIndex[i] = (double)I[i] * N + J[i];
-        if (vIndex[i] < 0)
-        {   
-               printf("Error: %lg < 0\n", vIndex[i]);
-               return NULL;
-            }
-    }
-
-    quicksort(val, vIndex, I, J, nz);
-
-    int *IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
-    memset(IRP, -1, (M+1)*sizeof(int));
-
-
-    for (int i = 0; i<nz; i++)
-    {
-        int tmp = (int)(vIndex[i] / N);
-        if (IRP[tmp] == -1)
-        {
-            IRP[tmp] = i;
-        }
-
-    }
-    // update last entry in IRP array with the greater one
-    IRP[M] = nz;
-
-    csr_mat = (struct Csr*) malloc(sizeof(struct Csr));
-    csr_mat->M = M;
-    csr_mat->N = N;
-    csr_mat->JA = J;
-    csr_mat->AS = val;
-    csr_mat->IRP = IRP;
-    csr_mat->nz = nz;
-
-    free(vIndex);
-
-    return csr_mat;
-}
-
-
-
-struct Ellpack* preprocess_ellpack(struct matrix *mat)
-{
-
-    struct Ellpack *ellpack_mat;
-
-    int *JA_t;
-    double *AS_t;
-
-    int maxnz = 0;
-    int M = mat->M;
-    int N = mat->N;
-    int nz = mat->nz;
-    int *I = mat->I;
-    int *J = mat->J;
-    double *val = mat->val;
-
-    //preprocess the dataset to make the calculation can be parallelized
-    double *vIndex = (double*)malloc(nz*sizeof(double));
-    memset(vIndex, 0, nz*sizeof(double));
-    for (int i = 0; i < nz; i++)
-    {
-        vIndex[i] = (double)I[i] * N + J[i];
-        if (vIndex[i] < 0)
-        {   
-               printf("Error: %lg < 0\n", vIndex[i]);
-               return NULL;
-            }
-    }
-
-    quicksort(val, vIndex, I, J, nz);
-
-    free(vIndex);
-    
-    int count_nz = 1;
-    for (int i = 0; i<nz-1; i++)
-    {
-        if ( I[i] == I[i+1] ){
-            count_nz++;
-        }else{
-            if( count_nz > maxnz )
-                maxnz = count_nz;
-            count_nz = 1;
-        }
-
-    }
-    if( count_nz > maxnz )
-        maxnz = count_nz;
-    if ( maxnz > nz )
-    {
-        printf("MaxNZ Error!\n");
-        exit(1);
-    }
-
-    // reserve JA and AS 2D arrays
-    int *JA = (int *) malloc((maxnz * M) * sizeof(int));
-    memset(JA, 0, (maxnz*M)*sizeof(int));
-    double *AS = (double *) malloc((maxnz * M) * sizeof(double));
-    memset(AS, 0, (maxnz*M)*sizeof(double));
-    int *MAXNZ = (int *) malloc( M* sizeof(int));
-    memset(MAXNZ, -1, M*sizeof(int));
-
-
-    // populate the 2D arrays
-    int x = 0, y = 0;
-    int prev = 0;
-    int count = 0;
-    int count_row = 0;
-    int offset = 0;
-    for ( int h = 0; h < nz; h++ )
-    {
-        x = I[h];
-
-        if( prev == x ){
-            count++;
-        }else{
-            //new row
-            // fill the rest of row with the latest value
-            for( int k = 0; k < maxnz - count; k++ ){
-                JA[prev*maxnz + count + k] = y;
-            }
-            MAXNZ[count_row] = count;
-            count_row++;
-            offset += count; //add prev row length to the offset 
-
-            count = 0;
-
-            prev = x;
-            h--;
-            continue;
-        }
-
-        prev = x;
-        y = J[h];
-        JA[x*maxnz + count - 1] = y;
-        AS[x*maxnz + count - 1] = val[h];
-
-    }
-    // lastline
-    while( count < maxnz ){
-        JA[x*maxnz + count] = y;
-        count++;
-    }
-    MAXNZ[count_row] = count;
-
-    //transposition vector AS e JA
-    //reserve memory
-    JA_t = (int *) malloc((maxnz*M) * sizeof(int));
-    memset(JA_t, -1, (maxnz*M)*sizeof(int));
-    AS_t = (double *) malloc((maxnz*M) * sizeof(double));
-    memset(AS_t, 0, (maxnz*M)*sizeof(double));
-
-    for(int i=0; i<M; i++)
-    {
-        for(int j=0; j<maxnz; j++)
-        {
-            JA_t[j*M+i]=JA[i*maxnz+j];
-            AS_t[j*M+i]=AS[i*maxnz+j];
-        }
-    }
-
-    ellpack_mat = (struct Ellpack*) malloc(sizeof(struct Ellpack));
-    ellpack_mat->M = M;
-    ellpack_mat->N = N;
-    ellpack_mat->maxnz = maxnz;
-    ellpack_mat->MAXNZ = MAXNZ;
-    ellpack_mat->JA_t = JA_t;
-    ellpack_mat->AS_t = AS_t;
-
-    return ellpack_mat;
-}
 
 
 
@@ -365,7 +178,7 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     checkCudaErrors(cudaDeviceSynchronize());
 
     timer->stop();
-    long elapsed_time = timer->getTime();
+    double elapsed_time = timer->getTime();
     double gpuflops=flopcnt/ elapsed_time;
     std::cout << "  GPU time: " << elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
 
@@ -444,7 +257,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     checkCudaErrors(cudaDeviceSynchronize());
 
     timer->stop();
-    long elapsed_time = timer->getTime();
+    double elapsed_time = timer->getTime();
     double gpuflops=flopcnt/ elapsed_time;
     std::cout << "  GPU time: " << elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
 
@@ -469,7 +282,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 {
     double *res;
     int     len;
-    long elapsed_time;
+    double elapsed_time;
     double gpuflops;
     int passed = 0;
 
@@ -484,7 +297,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
             csr_mat = preprocess_csr(mat);
             if( csr_mat == NULL )
-                return 1;
+                return -1;
             /* serial calculation with csr */
             struct Result *res_cuda_csr = module_cuda_csr(csr_mat, vec);
 
@@ -507,7 +320,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
             /* preprocess and build ellpack format */
             ellpack_mat = preprocess_ellpack(mat);
             if( ellpack_mat == NULL )
-                return 1;
+                return -1;
             /* calculation with ellpack with OpenMP */
             struct Result *res_cuda_ellpack = module_cuda_ellpack(ellpack_mat, vec);
 
@@ -532,8 +345,11 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     }
     std::cout << "Max diff = " << diff << "  Max rel diff = " << reldiff << std::endl;
 
+    if( reldiff < ERROR_BOUND && diff < ERROR_BOUND )
+        passed = 1;
+
     /* Print out the result in a file */
-    fprintf(fpt,"%s, %ld, %lg, %d\n", mode, elapsed_time, gpuflops, passed);
+    fprintf(fpt,"%s, %lg, %lg, %d, %lg, %lg\n", mode, elapsed_time, gpuflops, passed, diff, reldiff);
     fflush(fpt);
 
     free(res);
@@ -541,4 +357,94 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     
 
     return 0;
+}
+
+
+
+
+int load_mat_vec(char* mat_filename, char* vector_filename, struct matrix* mat, struct vector* vec){
+
+    int M, ret;
+
+    /* preprocess matrix: from .mtx to matrix */
+    ret = load_matrix(mat_filename, mat);
+    if( ret == -1 )
+        return -1;
+    M = mat->M;
+
+    /* load vector */
+    ret = load_vector(vector_filename, vec, M);
+    if( ret == -1 )
+        return -1;
+
+    return 0;
+}
+
+
+
+int main(int argc, char *argv[])
+{
+    
+    int ret;
+    FILE *fpt;
+    double *res_seq;
+
+    
+    if (argc < 4)
+    {
+        fprintf(stderr, "Usage: %s [-cudaCSR/-cudaELLPACK] [martix-market-filename] [vector-filename]\n", argv[0]);
+        exit(1);
+    }
+
+    //check if output file exists -> create
+    if ( (fpt = fopen(FILENAME, "r")) == NULL) 
+    {
+        fpt = fopen(FILENAME, "w+");
+        fprintf(fpt,"Matrix, M, N, nz, CalculationMode, CalculationTime(ms), GPUFlops, Passed\n");
+        fflush(fpt);
+    }
+    fpt = fopen(FILENAME, "a");
+
+    printf("Processing matrix %s\n\n", strrchr(argv[2], '/'));
+
+    struct matrix* mat = (struct matrix*) malloc(sizeof(struct matrix));
+    struct vector* vec = (struct vector*) malloc(sizeof(struct vector));
+
+    if(!strcmp(argv[1],"-cudaCSR") ){
+
+    }else if(!strcmp(argv[1],"-cudaELLPACK") ){
+
+    }else{
+        fprintf(stderr, "Usage: %s [-cudaCSR/-cudaELLPACK] [martix-market-filename] [vector-filename]\n", argv[0]);
+        goto exit;
+    }
+    ret = load_mat_vec(argv[2], argv[3], mat, vec);
+    if( ret == -1 ){
+        fprintf(fpt,"\n");
+        goto exit;
+    }
+
+    /* calculate the product result sequentially for testing */
+    res_seq = (double*)malloc((mat->M)*sizeof(double));
+    memset(res_seq, 0, (mat->M)*sizeof(double));
+
+    getmul(mat, vec, res_seq);
+
+    // write on file
+    fprintf(fpt,"%s, %d, %d, %d, ", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
+
+    ret = calculate_prod(mat, vec, res_seq, argv[1], fpt);
+    if( ret == -1 ){
+        fprintf(fpt,"\n");
+        goto exit;
+    }
+
+exit:
+    fclose(fpt);
+    free(mat);
+    free(vec);
+
+    
+
+
 }

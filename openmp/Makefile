@@ -3,7 +3,7 @@
 #  -Wall turns on most, but not all, compiler warnings
 CFLAGS  = -g -Wall
 OMP     = -fopenmp
-OBJS    = mmio.o utils.o calc.o
+OBJS    = mmio.o utils.o calc.o preproc.o
 LIB 	= lib
 
 
@@ -14,6 +14,9 @@ main:	main.o	$(OBJS)
 main.o:	main.c $(LIB)/utils.h
 	gcc -c main.c $(CFLAGS) $(OMP)
 
+#Preproc
+preproc.o: $(LIB)/preprocessing.c $(LIB)/utils.h
+	gcc -c $(LIB)/preprocessing.c  $(CFLAGS)
 
 #Calc
 calc.o:	calc.c $(LIB)/utils.h

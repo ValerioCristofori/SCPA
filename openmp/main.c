@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <omp.h> 
+
 #include "lib/utils.h"
 
 #define FILENAME "test-metrics.csv"
@@ -47,10 +48,12 @@ int main(int argc, char *argv[])
     if ( (fpt = fopen(FILENAME, "r")) == NULL) 
     {
         fpt = fopen(FILENAME, "w+");
-        fprintf(fpt,"Matrix, M, N, nz, CalculationMode, CalculationTime, GPUFlops, Passed\n");
+        fprintf(fpt,"Matrix, M, N, nz, CalculationMode, CalculationTime(ms), GPUFlops, Passed\n");
         fflush(fpt);
     }
     fpt = fopen(FILENAME, "a");
+
+    printf("Processing matrix %s\n\n", strrchr(argv[2], '/'));
 
     struct matrix* mat = (struct matrix*) malloc(sizeof(struct matrix));
     struct vector* vec = (struct vector*) malloc(sizeof(struct vector));
@@ -79,8 +82,10 @@ int main(int argc, char *argv[])
         goto exit;
     }
     ret = load_mat_vec(argv[2], argv[3], mat, vec);
-    if( ret == -1 )
+    if( ret == -1 ){
+        fprintf(fpt,"\n");
         goto exit;
+    }
 
     /* calculate the product result sequentially for testing */
     double *res_seq = (double*)malloc((mat->M)*sizeof(double));
@@ -92,8 +97,10 @@ int main(int argc, char *argv[])
     fprintf(fpt,"%s, %d, %d, %d, ", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
 
     ret = calculate_prod(mat, vec, res_seq, argv[1], num_threads, fpt);
-    if( ret == -1 )
+    if( ret == -1 ){
+        fprintf(fpt,"\n");
         goto exit;
+    }
 
 exit:
     fclose(fpt);

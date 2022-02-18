@@ -18,6 +18,5 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 cuda_add_executable(main main.cu )
-#add_executable(main main.c calc.cu)
 target_link_libraries( main lib )
 

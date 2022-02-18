@@ -38,7 +38,7 @@ struct Ellpack{
 struct Result{
 	double  *res;
 	int 		 len;
-	long    elapsed_time;
+	double    elapsed_time;
 };
 
 
@@ -46,7 +46,7 @@ struct Result{
 
 typedef struct{
 	time_t tv_sec; /* seconds */
-	long tv_nsec; /* nanoseconds */
+	double tv_nsec; /* nanoseconds */
 }timespect;
 
 typedef enum{
@@ -63,6 +63,12 @@ void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n);
 void dprintArrayInt(int* a, int len);
 
 void dprintArrayDouble(double* a, int len);
+
+
+
+struct Csr* preprocess_csr(struct matrix *mat);
+
+struct Ellpack* preprocess_ellpack(struct matrix *mat);
 
 
 

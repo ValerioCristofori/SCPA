@@ -126,18 +126,6 @@ void getmul(struct matrix *mat, struct vector *vec, double* res)
 	}
 }
 
-int checkerror(const double* resp, const double* ress, int dim)
-{
-	int i;
-	for (i = 0; i < dim; i++)
-	{
-		if (resp[i] != ress[i])
-			return 0;
-	}
-
-	return 1;
-
-}
 
 void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n)
 {

@@ -1,5 +1,3 @@
-#include <time.h>
-
 
 struct matrix{
 	int 			*I;  //row index
@@ -31,29 +29,19 @@ struct Csr{
 struct Ellpack{
 	int   	*JA_t;
 	double 	*AS_t;
-	int 	  M;
-	int 	  N;
+	int 	  	M;
+	int 	  	N;
 	int 		maxnz;
 	int     *MAXNZ;
 };
 
 struct Result{
-	double  *res;
-	int 		 len;
-	long     elapsed_time;
-	double 	 gpuflops;
+	double  	*res;
+	int 		len;
+	double     	elapsed_time;
+	double 	 	gpuflops;
 };
 
-
-
-
-typedef struct{
-	time_t tv_sec; /* seconds */
-	long tv_nsec; /* nanoseconds */
-}timespect;
-
-
-int checkerror(const double *resp, const double *ress, int dim);
 
 void getmul(struct matrix *mat, struct vector *vec, double* res);
 
@@ -62,6 +50,13 @@ void quicksort(double* a, double* vindex, int* rindex, int* cindex, int n);
 void dprintArrayInt(int* a, int len);
 
 void dprintArrayDouble(double* a, int len);
+
+
+
+
+struct Csr* preprocess_csr(struct matrix *mat);
+
+struct Ellpack* preprocess_ellpack(struct matrix *mat);
 
 
 
