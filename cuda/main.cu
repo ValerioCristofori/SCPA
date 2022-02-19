@@ -13,8 +13,8 @@
 
 // Change to find the best possible performance
 // Note: For meaningful time measurements you need sufficiently large matrices.
-#define BLOCK_SIZE 256
-#define WARP_SIZE        32
+#define BLOCK_SIZE      256
+#define WARP_SIZE       32
 
 /* To classify if a calculation has been successful, 
     look at the rel diff and the diff. 
@@ -358,6 +358,8 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     // check if relative diff is less than the rounding of the unit
     if( reldiff <= ERROR_BOUND )
         passed = 1;
+
+    sprintf(mode, "%s(%d)", mode, BLOCK_SIZE);
 
     /* Print out the result in a file */
     fprintf(fpt,"%s, %lg, %lg, %d, %lg, %lg\n", mode, elapsed_time, gpuflops, passed, diff, reldiff);
