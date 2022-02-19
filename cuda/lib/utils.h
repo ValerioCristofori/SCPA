@@ -31,6 +31,7 @@ struct Ellpack{
 	double 	   *AS_t;	// coefficients vector: transposed matrix
 	int 	  	M;		// number of rows
 	int 	  	N;		// number of columns
+	int 		nz;		// number of non-zeros
 	int 		maxnz;	// the maximum of non-zeros per row
 	int        *MAXNZ;	// vector of non-zero num each row
 };

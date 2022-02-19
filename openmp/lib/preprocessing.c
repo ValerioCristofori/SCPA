@@ -52,6 +52,7 @@ struct Csr* preprocess_csr(struct matrix *mat)
     csr_mat = (struct Csr*) malloc(sizeof(struct Csr));
     csr_mat->M = M;
     csr_mat->N = N;
+    csr_mat->nz = nz;
     csr_mat->JA = J;
     csr_mat->AS = val;
     csr_mat->IRP = IRP;
@@ -160,6 +161,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     ellpack_mat = (struct Ellpack*) malloc(sizeof(struct Ellpack));
     ellpack_mat->M = M;
     ellpack_mat->N = N;
+    ellpack_mat->nz = nz;
     ellpack_mat->maxnz = maxnz;
     ellpack_mat->JA = JA;
     ellpack_mat->AS = AS;

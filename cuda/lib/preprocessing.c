@@ -178,6 +178,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     ellpack_mat = (struct Ellpack*) malloc(sizeof(struct Ellpack));
     ellpack_mat->M = M;
     ellpack_mat->N = N;
+    ellpack_mat->nz = nz;
     ellpack_mat->maxnz = maxnz;
     ellpack_mat->MAXNZ = MAXNZ;
     ellpack_mat->JA_t = JA_t;

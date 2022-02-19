@@ -24,6 +24,7 @@ struct Csr{
 	double 	 *AS;		// coefficients vector
 	int 	  M;		// number of rows
 	int 	  N;		// number of cols
+	int 		nz;		// number of non-zeros
 };
 
 
@@ -32,6 +33,7 @@ struct Ellpack{
 	double 	   	*AS;	// coefficients vector: transposed matrix
 	int 	  		M;		// number of rows
 	int 	  		N;		// number of columns
+	int 				nz;		// number of non-zeros
 	int 			maxnz;	// the maximum of non-zeros per row
 };
 
@@ -39,7 +41,7 @@ struct Result{
 	double     					*res;			// result array
 	int 								 len;			// length of the array
 	double     	elapsed_time;			// time in calculation
-	double 	 				gpuflops;			// floating point ops per sec
+	double 	 				cpuflops;			// floating point ops per sec
 };
 
 

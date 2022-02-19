@@ -145,7 +145,7 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     printf("\n Start computation ... \n");
     
 
-    double flopcnt=2.e-6*M*N;
+    double flopcnt=2.e-6*nz;
     // Calculate the dimension of the grid of blocks (1D) needed to cover all
     // entries in the matrix and output vector
     const dim3 GRID_DIM((M - 1 + BLOCK_DIM.x)/ BLOCK_DIM.x  ,1);
@@ -220,6 +220,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     int   *MAXNZ = ellpack_mat->MAXNZ;
     int        M = ellpack_mat->M;
     int        N = ellpack_mat->N;
+    int       nz = ellpack_mat->nz;
     int    maxnz = ellpack_mat->maxnz;
 
 
@@ -227,7 +228,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     printf("\n Start computation ... \n");
     
 
-    double flopcnt=2.e-6*M*N;
+    double flopcnt=2.e-6*nz;
     // Calculate the dimension of the grid of blocks (1D) needed to cover all
     // entries in the matrix and output vector
     const dim3 GRID_DIM((M - 1 + BLOCK_DIM.x)/ BLOCK_DIM.x  ,1);
@@ -289,6 +290,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     double      elapsed_time;   // time spent in the calculation
     double      gpuflops;       // GPU floating point ops per second
     int         passed = 0;     // 1 if the parallelized product is successful 
+    struct Result *result;
 
     double reldiff      = 0.0f; //
     double diff         = 0.0f; //
@@ -307,14 +309,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
                 return -1;
             
             /* serial calculation with csr */
-            struct Result *res_cuda_csr = module_cuda_csr(csr_mat, vec);
-
-            // build vars for verification and metrics
-            res = res_cuda_csr->res;
-            len = res_cuda_csr->len;
-            elapsed_time = res_cuda_csr->elapsed_time;
-            gpuflops = res_cuda_csr->gpuflops;
-            
+            result = module_cuda_csr(csr_mat, vec);
 
             free(csr_mat);
 
@@ -332,18 +327,17 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
                 return -1;
             
             /* calculation with ellpack with OpenMP */
-            struct Result *res_cuda_ellpack = module_cuda_ellpack(ellpack_mat, vec);
-
-            // build vars for verification and metrics
-            res = res_cuda_ellpack->res;
-            len = res_cuda_ellpack->len;
-            elapsed_time = res_cuda_ellpack->elapsed_time;
-            gpuflops = res_cuda_ellpack->gpuflops;
+            result = module_cuda_ellpack(ellpack_mat, vec);
 
             free(ellpack_mat);
 
-
     }
+
+    // build vars for verification and metrics
+    res = result->res;
+    len = result->len;
+    elapsed_time = result->elapsed_time;
+    gpuflops = result->gpuflops;
 
     // calculate the relative difference and the absolute max difference
     // between res[i] and res_seq[i] -> use for testing if the calculation is succesful done
@@ -365,7 +359,8 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     fprintf(fpt,"%s, %lg, %lg, %d, %lg, %lg\n", mode, elapsed_time, gpuflops, passed, diff, reldiff);
     fflush(fpt);
 
-    free(res);
+    free(result->res);
+    free(result);
     free(res_seq);    
     
 

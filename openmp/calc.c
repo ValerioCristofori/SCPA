@@ -15,12 +15,14 @@ and then requests another chunk until there are no more chunks available. */
 struct Result* module_serial_csr(struct Csr* csr_mat, struct vector* vec)
 {
     int           M = csr_mat->M;
+    int          nz = csr_mat->nz;
     int        *IRP = csr_mat->IRP;
     int         *JA = csr_mat->JA;
     double      *AS = csr_mat->AS;
     double       *X = vec->X;
 
     printf("\n Start computation ... \n");
+    double flopcnt=2.e-6*nz;
     struct timeval start, end;
 
     /* allocate memory for result vector */
@@ -46,6 +48,7 @@ struct Result* module_serial_csr(struct Csr* csr_mat, struct vector* vec)
     long time = ((end.tv_sec * 1000000 + end.tv_usec)
           - (start.tv_sec * 1000000 + start.tv_usec));
     double elapsed_time = (double)time / 1000;
+    double cpuflops = flopcnt / elapsed_time;
 
     printf(" Total time: %lg milliseconds\n\n",  elapsed_time);
 
@@ -53,6 +56,7 @@ struct Result* module_serial_csr(struct Csr* csr_mat, struct vector* vec)
     res_serial_csr->res = res;
     res_serial_csr->len = M;
     res_serial_csr->elapsed_time = elapsed_time;
+    res_serial_csr->cpuflops = cpuflops;
     
 
     return res_serial_csr;
@@ -70,9 +74,11 @@ struct Result* module_omp_csr(struct Csr* csr_mat, struct vector* vec, int threa
     double   *AS = csr_mat->AS;
     double    *X = vec->X;
     int        M = csr_mat->M;
+    int       nz = csr_mat->nz;
 
 
     printf("\n Start computation ... \n");
+    double flopcnt=2.e-6*nz;
     struct timeval start, end;
 
     /* allocate memory for result vector */
@@ -104,6 +110,7 @@ struct Result* module_omp_csr(struct Csr* csr_mat, struct vector* vec, int threa
     long time = ((end.tv_sec * 1000000 + end.tv_usec)
           - (start.tv_sec * 1000000 + start.tv_usec));
     double elapsed_time = (double)time / 1000;
+    double cpuflops = flopcnt / elapsed_time;
 
     printf(" Total time: %lg milliseconds\n\n",  elapsed_time);
 
@@ -111,6 +118,7 @@ struct Result* module_omp_csr(struct Csr* csr_mat, struct vector* vec, int threa
     res_omp_csr->res = res;
     res_omp_csr->len = M;
     res_omp_csr->elapsed_time = elapsed_time;
+    res_omp_csr->cpuflops = cpuflops;
 
     return res_omp_csr;
 }
@@ -127,8 +135,10 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
     int        *JA = ellpack_mat->JA;
     int      maxnz = ellpack_mat->maxnz;
     int          M = ellpack_mat->M;
+    int         nz = ellpack_mat->nz;
 
     printf("\n Start computation ... \n");
+    double flopcnt=2.e-6*nz;
     struct timeval start, end;
 
     /* allocate memory for result vector */
@@ -161,13 +171,15 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
     long time = ((end.tv_sec * 1000000 + end.tv_usec)
           - (start.tv_sec * 1000000 + start.tv_usec));
     double elapsed_time = (double)time / 1000;
+    double cpuflops = flopcnt / elapsed_time;
 
-    printf(" Total time: %lg milliseconds\n\n",  elapsed_time);
+    printf(" Total time: %lf milliseconds\n\n",  elapsed_time);
 
     struct Result* res_omp_ellpack = (struct Result*) malloc(sizeof(struct Result));
     res_omp_ellpack->res = res;
     res_omp_ellpack->len = M;
     res_omp_ellpack->elapsed_time = elapsed_time;
+    res_omp_ellpack->cpuflops = cpuflops;
 
     return res_omp_ellpack;
 }
@@ -179,7 +191,9 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     double      *res;         // result of the parallel product
     int         len;          // len of the result
     double      elapsed_time; // time spent in the calculation
+    double      cpuflops;     // CPU floating point ops per second
     int         passed = 0;   // 1 if the parallelized product is successful 
+    struct Result   *result;
     
     /* select the right matrix preprocessing and calculation mode
       with respect to the 'mode' value entered   */
@@ -195,16 +209,9 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
                 return -1;
             
             /* serial calculation with csr */
-            struct Result *res_serial_csr = module_serial_csr(csr_mat, vec);
-
-            // build vars for verification and metrics
-            res = res_serial_csr->res;
-            len = res_serial_csr->len;
-            elapsed_time = res_serial_csr->elapsed_time;
+            result = module_serial_csr(csr_mat, vec);
 
             free(csr_mat);
-            free(res_serial_csr);
-
 
 
     }else if(!strcmp(mode,"-ompCSR") ){
@@ -220,12 +227,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
                 return -1;
             
             /* calculation with csr with OpenMP */
-            struct Result *res_omp_csr = module_omp_csr(csr_mat, vec, num_threads);
-
-            // build vars for verification and metrics
-            res = res_omp_csr->res;
-            len = res_omp_csr->len;
-            elapsed_time = res_omp_csr->elapsed_time;
+            result = module_omp_csr(csr_mat, vec, num_threads);
 
             free(csr_mat);
 
@@ -242,18 +244,18 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
                 return -1;
             
             /* calculation with ellpack with OpenMP */
-            struct Result *res_omp_ellpack = module_omp_ellpack(ellpack_mat, vec, num_threads);
-
-            // build vars for verification and metrics
-            res = res_omp_ellpack->res;
-            len = res_omp_ellpack->len;
-            elapsed_time = res_omp_ellpack->elapsed_time;
-            
+            result = module_omp_ellpack(ellpack_mat, vec, num_threads);
 
             free(ellpack_mat);
 
 
     }
+
+    // build vars for verification and metrics
+    res = result->res;
+    len = result->len;
+    elapsed_time = result->elapsed_time;
+    cpuflops = result->cpuflops;
 
     // check if parallel calculation is successful done
     if (!checkerror(res, res_seq, len))
@@ -267,11 +269,12 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     }
 
     /* print on file the entry result */
-    fprintf(fpt,"%s, %lg, 0, %d\n", mode, elapsed_time, passed);
+    fprintf(fpt,"%s, %lg, %lg, %d\n", mode, elapsed_time, cpuflops, passed);
     fflush(fpt);
 
 
-    free(res);
+    free(result->res);
+    free(result);
     free(res_seq);    
     
 
