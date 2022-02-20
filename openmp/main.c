@@ -8,7 +8,7 @@
 #define FILENAME "test-metrics.csv" // output filename
 
 
-int   num_threads; //use for parallel openmp calculation
+int   num_threads = 0; //use for parallel openmp calculation
 
 
 
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     {
         // create the output file and a '.csv' header
         fpt = fopen(FILENAME, "w+");
-        fprintf(fpt,"Matrix, M, N, nz, CalculationMode, CalculationTime(ms), GPUFlops, Passed\n");
+        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed\n");
         fflush(fpt);
     }
     // open file in append mode for add new entry
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
     getmul(mat, vec, res_seq);
 
     // write on file
-    fprintf(fpt,"%s, %d, %d, %d, ", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
+    fprintf(fpt,"%s,%d,%d,%d,", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
 
     /* call the function responsible for calculating 
     the product according to the mode entered */

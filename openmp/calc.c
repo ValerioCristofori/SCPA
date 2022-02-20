@@ -173,7 +173,7 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
     double elapsed_time = (double)time / 1000;
     double cpuflops = flopcnt / elapsed_time;
 
-    printf(" Total time: %lf milliseconds\n\n",  elapsed_time);
+    printf(" Total time: %lg milliseconds\n\n",  elapsed_time);
 
     struct Result* res_omp_ellpack = (struct Result*) malloc(sizeof(struct Result));
     res_omp_ellpack->res = res;
@@ -219,7 +219,6 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
             struct Csr *csr_mat;
         
             printf("Start OpenMP calculation with CSR with %d Threads...\n", num_threads);
-            sprintf(mode, "%s(%d)", mode, num_threads);
 
             /* pre-processing the matrix following CSR format */
             csr_mat = preprocess_csr(mat);
@@ -236,7 +235,6 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
             struct Ellpack *ellpack_mat;
 
             printf("Start OpenMP calculation with ELLPACK with %d Threads...\n", num_threads);
-            sprintf(mode, "%s(%d)", mode, num_threads);
 
             /* preprocess and build ellpack format for matrix */
             ellpack_mat = preprocess_ellpack(mat);
@@ -269,7 +267,7 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     }
 
     /* print on file the entry result */
-    fprintf(fpt,"%s, %lg, %lg, %d\n", mode, elapsed_time, cpuflops, passed);
+    fprintf(fpt,"%s,%d,%lg,%lg,%d\n", mode, num_threads, elapsed_time, cpuflops, passed);
     fflush(fpt);
 
 

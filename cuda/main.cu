@@ -353,10 +353,8 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
     if( reldiff <= ERROR_BOUND )
         passed = 1;
 
-    sprintf(mode, "%s(%d)", mode, BLOCK_SIZE);
-
     /* Print out the result in a file */
-    fprintf(fpt,"%s, %lg, %lg, %d, %lg, %lg\n", mode, elapsed_time, gpuflops, passed, diff, reldiff);
+    fprintf(fpt,"%s,%d,%lg,%lg,%d,%lg,%lg\n", mode, BLOCK_SIZE, elapsed_time, gpuflops, passed, diff, reldiff);
     fflush(fpt);
 
     free(result->res);
@@ -410,7 +408,7 @@ int main(int argc, char *argv[])
     {
         // create the output file and a '.csv' header
         fpt = fopen(FILENAME, "w+");
-        fprintf(fpt,"Matrix, M, N, nz, CalculationMode, CalculationTime(ms), GPUFlops, Passed\n");
+        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed\n");
         fflush(fpt);
     }
     // open file in append mode for add new entry
@@ -453,7 +451,7 @@ int main(int argc, char *argv[])
     getmul(mat, vec, res_seq);
 
     // write on 'csv' output file the matrix informations
-    fprintf(fpt,"%s, %d, %d, %d, ", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
+    fprintf(fpt,"%s,%d,%d,%d,", strrchr(argv[2], '/'), mat->M, mat->N, mat->nz);
 
     /* call the function responsible for calculating 
     the product according to the mode entered */
