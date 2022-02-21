@@ -6,7 +6,8 @@ import numpy as np
 
 FILE = "./test-metrics.csv"
 
-THREADS = [4,8,12,16,20,24,28,32,36]
+MAX_THREADS = 40
+THREADS = range(1, MAX_THREADS)
 BLOCKS  = [128,256,384,512,640,768,896,1024]
 
 
@@ -239,7 +240,7 @@ def cpu_grafico_gflop():
 			if matrix:
 				matrix[index] = float(gflops)
 			else:
-				matrix = [0,0,0,0,0,0,0,0,0] #9 len
+				matrix = [0] * len(THREADS)
 				matrix[index] = float(gflops)
 			cpu_csr[name] = matrix
 		
@@ -250,7 +251,7 @@ def cpu_grafico_gflop():
 			if matrix:
 				matrix[index] = float(gflops)
 			else:
-				matrix = [0,0,0,0,0,0,0,0,0]
+				matrix = [0] * len(THREADS)
 				matrix[index] = float(gflops)
 			cpu_ellpack[name] = matrix
 
@@ -293,7 +294,7 @@ def gpu_grafico_gflop():
 			if matrix:
 				matrix[index] = float(gflops)
 			else:
-				matrix = [0,0,0,0,0,0,0,0] #8 len
+				matrix = [0] * len(BLOCKS)
 				matrix[index] = float(gflops)
 			gpu_csr[name] = matrix
 
@@ -304,7 +305,7 @@ def gpu_grafico_gflop():
 			if matrix:
 				matrix[index] = float(gflops)
 			else:
-				matrix = [0,0,0,0,0,0,0,0] #8 len
+				matrix = [0] * len(BLOCKS)
 				matrix[index] = float(gflops)
 			gpu_ellpack[name] = matrix
 
@@ -314,7 +315,7 @@ def gpu_grafico_gflop():
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)
 	plt.title("GPU CSR performance", fontsize=13)
-	plt.legend()
+	plt.legend(loc = "upper right")
 
 	plt.show()
 
@@ -325,8 +326,8 @@ def gpu_grafico_gflop():
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)
 	plt.title("GPU ELLPACK performance", fontsize=13)
-	plt.legend()
-
+	plt.legend(loc = "upper right")
+	
 	plt.show()
 
 

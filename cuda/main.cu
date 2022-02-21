@@ -283,8 +283,6 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
 
 int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, int dim_res_seq, char* mode, FILE *fpt)
 {
-    double      *res;           // result of the parallel product
-    int         len;            // len of the result
     double      elapsed_time;   // time spent in the calculation
     double      gpuflops;       // GPU floating point ops per second
     int         passed = 0;     // 1 if the parallelized product is successful 

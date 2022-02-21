@@ -31,7 +31,7 @@ struct Csr* preprocess_csr(struct matrix *mat)
                return NULL;
             }
     }
-    // order values vector through vIndex
+    // order values vector
     quicksort(val, vIndex, I, J, nz);
 
     int empty_rows = 0;
@@ -123,7 +123,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
                return NULL;
             }
     }
-    // order values vector through vIndex
+    // order values vector 
     quicksort(val, vIndex, I, J, nz);
 
     free(vIndex);
@@ -155,7 +155,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     double *AS = (double *) malloc((maxnz * M) * sizeof(double));
     memset(AS, 0, (maxnz*M)*sizeof(double));
     int *MAXNZ = (int *) malloc( M* sizeof(int));
-    memset(MAXNZ, -1, M*sizeof(int));
+    memset(MAXNZ, 0, M*sizeof(int));
 
 
     // populate the arrays
@@ -163,6 +163,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     int prev        = 0; // last row index value
     int count       = 0; // idx for update JA and AS
     int count_row   = 0; // num of nz in current row
+    int gap         = 0; // >1 if there are some empty rows
     for ( int h = 0; h < nz; h++ )
     {
         x = I[h];
@@ -172,7 +173,8 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
         }else{
             //new row
             MAXNZ[count_row] = count; // set number of nz in last row
-            count_row++;
+    
+            count_row += x - prev; // > 2 if there are some empty rows -> else += 1
 
             count = 0;
             prev = x;

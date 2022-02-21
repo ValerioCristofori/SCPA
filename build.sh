@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd cuda
-./configure.sh
+./configure.sh 256
 cd ..
 
 cd openmp

@@ -30,7 +30,7 @@ struct Csr* preprocess_csr(struct matrix *mat)
                return NULL;
             }
     }
-    // order values vector through vIndex
+    // order values vector 
     quicksort(val, vIndex, I, J, nz);
 
     int empty_rows = 0;
@@ -119,7 +119,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
                return NULL;
             }
     }
-    // order values vector through vIndex
+    // order values vector
     quicksort(val, vIndex, I, J, nz);
 
     free(vIndex);
@@ -155,7 +155,6 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     int    x = 0, y = 0;    // temp values: x -> row idx, y -> col idx
     int prev        = 0; // last row index value
     int count       = 0; // idx for update JA and AS
-
     for ( int h = 0; h < nz; h++ )
     {
         x = I[h];
@@ -174,7 +173,6 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
             continue;
         }
         y = J[h]; // get col index
-
         // update entry 
         JA[x*maxnz + count - 1] = y;
         AS[x*maxnz + count - 1] = val[h];
@@ -185,7 +183,6 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
         JA[x*maxnz + count] = y;
         count++;
     }
-
 
     ellpack_mat = (struct Ellpack*) malloc(sizeof(struct Ellpack));
     ellpack_mat->M = M;

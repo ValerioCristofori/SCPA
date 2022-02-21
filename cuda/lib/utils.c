@@ -188,7 +188,6 @@ int checkerror(struct Result* result, const double* res_seq, int dim_res_seq)
     double maxabs;
     double reldiff = 0.0;
     double diff    = 0.0;
-    printf("Dim: %d dim_seq: %d\n", dim, dim_res_seq );
 
     // check if relative diff is less than the rounding of the unit
     if( dim != dim_res_seq ){
@@ -202,7 +201,6 @@ int checkerror(struct Result* result, const double* res_seq, int dim_res_seq)
                 }
             }
 
-            printf("Res_seq: %lg  Res: %lg\n", res_seq[i], res[j] );
 
             maxabs = max( abs(res_seq[i]), abs(res[j]));
             if (maxabs == 0.0) maxabs=1.0;
@@ -212,7 +210,6 @@ int checkerror(struct Result* result, const double* res_seq, int dim_res_seq)
             j++;
         }
         if( j != dim ){
-            printf("Dim: %d j: %d\n", dim, j );
             result->reldiff = reldiff;
             result->diff    = diff;
             return 0;
@@ -221,7 +218,6 @@ int checkerror(struct Result* result, const double* res_seq, int dim_res_seq)
 
         for (i = 0; i < dim; i++)
         {
-            printf("Res_seq: %lg  Res: %lg\n", res_seq[i], res[i] );
             maxabs = max( abs(res_seq[i]), abs(res[i]));
             if (maxabs == 0.0) maxabs=1.0;
             reldiff = max(reldiff, abs(res_seq[i] - res[i])/maxabs);
