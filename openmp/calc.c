@@ -186,14 +186,15 @@ struct Result* module_omp_ellpack(struct Ellpack* ellpack_mat, struct vector* ve
 
 
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, int num_threads, FILE *fpt)
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, int dim_res_seq, char* mode, int num_threads, FILE *fpt)
 {
-    double      *res;         // result of the parallel product
-    int         len;          // len of the result
     double      elapsed_time; // time spent in the calculation
     double      cpuflops;     // CPU floating point ops per second
     int         passed = 0;   // 1 if the parallelized product is successful 
     struct Result   *result;
+
+    double reldiff      = 0.0; 
+    double diff         = 0.0; 
     
     /* select the right matrix preprocessing and calculation mode
       with respect to the 'mode' value entered   */
@@ -249,14 +250,9 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
     }
 
-    // build vars for verification and metrics
-    res = result->res;
-    len = result->len;
-    elapsed_time = result->elapsed_time;
-    cpuflops = result->cpuflops;
 
     // check if parallel calculation is successful done
-    if (!checkerror(res, res_seq, len))
+    if (!checkerror(result, res_seq, dim_res_seq))
     {
         printf("Calculation Error!\n");
 
@@ -266,8 +262,14 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
         passed = 1;
     }
 
+    // build vars for verification and metrics
+    elapsed_time = result->elapsed_time;
+    cpuflops = result->cpuflops;
+    diff     = result->diff;
+    reldiff  = result->reldiff;
+
     /* print on file the entry result */
-    fprintf(fpt,"%s,%d,%lg,%lg,%d\n", mode, num_threads, elapsed_time, cpuflops, passed);
+    fprintf(fpt,"%s,%d,%lg,%lg,%d,%lg,%lg\n", mode, num_threads, elapsed_time, cpuflops, passed, diff, reldiff);
     fflush(fpt);
 
 

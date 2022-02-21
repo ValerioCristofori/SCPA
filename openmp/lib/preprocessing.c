@@ -33,21 +33,49 @@ struct Csr* preprocess_csr(struct matrix *mat)
     // order values vector through vIndex
     quicksort(val, vIndex, I, J, nz);
 
-    int *IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
-    memset(IRP, -1, (M+1)*sizeof(int));
+    int empty_rows = 0;
+    int gap;
+    for( int i = 0; i < nz - 1; i++){
+        gap = I[i+1] - I[i];
+        if( gap > 1 ){
+            // empty row
+            empty_rows += gap - 1;
+        }
+    }
+    int *tmp_IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
+    memset(tmp_IRP, -1, (M+1)*sizeof(int));
 
     /* build IRP vector */
     for (int i = 0; i<nz; i++)
     {
         int tmp = (int)(vIndex[i] / N);
-        if (IRP[tmp] == -1)
+        if (tmp_IRP[tmp] == -1)
         {
-            IRP[tmp] = i;
+            tmp_IRP[tmp] = i;
         }
 
     }
     // update last entry in IRP array with the greater one
-    IRP[M] = nz;
+    tmp_IRP[M] = nz;
+
+    printf("Empty rows: %d\n", empty_rows);
+    int *IRP;
+    if(empty_rows != 0){
+        IRP = (int*)malloc((M - empty_rows + 1)*sizeof(int)); //start position of each row
+        memset(IRP, -1, (M - empty_rows + 1)*sizeof(int));
+        int index = 0;
+        for(int i = 0; i < M + 1; i++){
+            if( tmp_IRP[i] != -1 ){
+                IRP[index] = tmp_IRP[i];
+                index++;
+            }
+        }
+        M -= empty_rows;
+
+    }else{
+        IRP = tmp_IRP;
+    }
+
 
     csr_mat = (struct Csr*) malloc(sizeof(struct Csr));
     csr_mat->M = M;
@@ -157,6 +185,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
         JA[x*maxnz + count] = y;
         count++;
     }
+
 
     ellpack_mat = (struct Ellpack*) malloc(sizeof(struct Ellpack));
     ellpack_mat->M = M;

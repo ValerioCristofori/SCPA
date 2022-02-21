@@ -14,17 +14,17 @@ int   num_threads = 0; //use for parallel openmp calculation
 
 int load_mat_vec(char* mat_filename, char* vector_filename, struct matrix* mat, struct vector* vec){
 
-    int M, ret;
+    int N, ret;
 
     /* preprocess matrix: from .mtx to matrix */
     ret = load_matrix(mat_filename, mat);
     if( ret == -1 )
         return -1;
-    M = mat->M;
+    N = mat->N;
 
     /* load vector from .txt: generate with 'vector_generator.sh' */
     /* first entry of the file provide vector's length */
-    ret = load_vector(vector_filename, vec, M);
+    ret = load_vector(vector_filename, vec, N);
     if( ret == -1 )
         return -1;
 
@@ -46,11 +46,13 @@ int main(int argc, char *argv[])
     }
 
     // check if the output file exists
+
+
     if ( (fpt = fopen(FILENAME, "r")) == NULL) 
     {
         // create the output file and a '.csv' header
         fpt = fopen(FILENAME, "w+");
-        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed\n");
+        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed,Diff,RelDiff\n");
         fflush(fpt);
     }
     // open file in append mode for add new entry
@@ -111,7 +113,7 @@ int main(int argc, char *argv[])
 
     /* call the function responsible for calculating 
     the product according to the mode entered */
-    ret = calculate_prod(mat, vec, res_seq, argv[1], num_threads, fpt);
+    ret = calculate_prod(mat, vec, res_seq, mat->M, argv[1], num_threads, fpt);
     if( ret == -1 ){
         fprintf(fpt,"\n");
         goto exit;

@@ -13,14 +13,12 @@
 
 // Change to find the best possible performance
 // Note: For meaningful time measurements you need sufficiently large matrices.
+#ifndef BLOCK_SIZE
 #define BLOCK_SIZE      256
+#endif
+
 #define WARP_SIZE       32
 
-/* To classify if a calculation has been successful, 
-    look at the rel diff and the diff. 
-    If the rel diff is less than the rounding of the unit 
-    (which according to the IEEE standard is 1.19e-07). */
-#define ERROR_BOUND     1.19e-07
 
 
 const dim3 BLOCK_DIM(BLOCK_SIZE);
@@ -154,7 +152,7 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     checkCudaErrors(cudaMalloc((void**) &d_AS, nz*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_JA, nz*sizeof(int)));
     checkCudaErrors(cudaMalloc((void**) &d_IRP, (M+1)*sizeof(int)));
-    checkCudaErrors(cudaMalloc((void**) &d_X, M*sizeof(double)));
+    checkCudaErrors(cudaMalloc((void**) &d_X, N*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_res, M*sizeof(double)));
 
 
@@ -162,7 +160,7 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     checkCudaErrors(cudaMemcpy(d_AS, AS, nz*sizeof(double), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_JA, JA, nz*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_IRP, IRP, (M+1)*sizeof(int), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_X, X, M*sizeof(double), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_X, X, N*sizeof(double), cudaMemcpyHostToDevice));
 
 
     // start timer
@@ -237,7 +235,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     checkCudaErrors(cudaMalloc((void**) &d_AS_t, (maxnz*M)*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_JA_t, (maxnz*M)*sizeof(int)));
     checkCudaErrors(cudaMalloc((void**) &d_MAXNZ, M*sizeof(int)));
-    checkCudaErrors(cudaMalloc((void**) &d_X, M*sizeof(double)));
+    checkCudaErrors(cudaMalloc((void**) &d_X, N*sizeof(double)));
     checkCudaErrors(cudaMalloc((void**) &d_res, M*sizeof(double)));
 
 
@@ -245,7 +243,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     checkCudaErrors(cudaMemcpy(d_AS_t, AS_t, (maxnz*M)*sizeof(double), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_JA_t, JA_t, (maxnz*M)*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_MAXNZ, MAXNZ, M*sizeof(int), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(d_X, X, M*sizeof(double), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_X, X, N*sizeof(double), cudaMemcpyHostToDevice));
 
 
     // start timer
@@ -283,7 +281,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
 }
 
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, FILE *fpt)
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, int dim_res_seq, char* mode, FILE *fpt)
 {
     double      *res;           // result of the parallel product
     int         len;            // len of the result
@@ -333,25 +331,25 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
     }
 
+    // check if parallel calculation is successful done
+    if (!checkerror(result, res_seq, dim_res_seq))
+    {
+        printf("Calculation Error!\n");
+
+    }
+    else {
+        printf(" Test Result Passed ... \n");
+        passed = 1;
+    }
+
     // build vars for verification and metrics
-    res = result->res;
-    len = result->len;
     elapsed_time = result->elapsed_time;
     gpuflops = result->gpuflops;
+    diff     = result->diff;
+    reldiff  = result->reldiff;
 
-    // calculate the relative difference and the absolute max difference
-    // between res[i] and res_seq[i] -> use for testing if the calculation is succesful done
-    for (int i = 0; i < len; ++i) {
-        double maxabs = std::max(std::abs(res_seq[i]),std::abs(res[i]));
-        if (maxabs == 0.0) maxabs=1.0;
-        reldiff = std::max(reldiff, std::abs(res_seq[i] - res[i])/maxabs);
-        diff = std::max(diff, std::abs(res_seq[i] - res[i]));
-    }
-    std::cout << "Max diff = " << diff << "  Max rel diff = " << reldiff << std::endl;
-
-    // check if relative diff is less than the rounding of the unit
-    if( reldiff <= ERROR_BOUND )
-        passed = 1;
+    
+    
 
     /* Print out the result in a file */
     fprintf(fpt,"%s,%d,%lg,%lg,%d,%lg,%lg\n", mode, BLOCK_SIZE, elapsed_time, gpuflops, passed, diff, reldiff);
@@ -370,17 +368,17 @@ int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char
 
 int load_mat_vec(char* mat_filename, char* vector_filename, struct matrix* mat, struct vector* vec){
 
-    int M, ret;
+    int N, ret;
 
     /* preprocess matrix: from .mtx to matrix */
     ret = load_matrix(mat_filename, mat);
     if( ret == -1 )
         return -1;
-    M = mat->M;
+    N = mat->N;
 
     /* load vector from .txt: generate with 'vector_generator.sh' */
     /* first entry of the file provide vector's length */
-    ret = load_vector(vector_filename, vec, M);
+    ret = load_vector(vector_filename, vec, N);
     if( ret == -1 )
         return -1;
 
@@ -408,7 +406,7 @@ int main(int argc, char *argv[])
     {
         // create the output file and a '.csv' header
         fpt = fopen(FILENAME, "w+");
-        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed\n");
+        fprintf(fpt,"Matrix,M,N,nz,CalculationMode,Threads,CalculationTime(ms),GFlops,Passed,Diff,RelDiff\n");
         fflush(fpt);
     }
     // open file in append mode for add new entry
@@ -455,7 +453,7 @@ int main(int argc, char *argv[])
 
     /* call the function responsible for calculating 
     the product according to the mode entered */
-    ret = calculate_prod(mat, vec, res_seq, argv[1], fpt);
+    ret = calculate_prod(mat, vec, res_seq, mat->M, argv[1], fpt);
     if( ret == -1 ){
         fprintf(fpt,"\n");
         goto exit;

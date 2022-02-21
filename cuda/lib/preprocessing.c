@@ -15,9 +15,11 @@ struct Csr* preprocess_csr(struct matrix *mat)
     int *J  = mat->J;
     double *val = mat->val;
 
+
+
     //preprocess the dataset to make the calculation can be parallelized
     /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
-        of the non-zeros positions */
+        of the non-zeros positions */ 
     double *vIndex = (double*)malloc(nz*sizeof(double));
     memset(vIndex, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
@@ -32,29 +34,57 @@ struct Csr* preprocess_csr(struct matrix *mat)
     // order values vector through vIndex
     quicksort(val, vIndex, I, J, nz);
 
-    int *IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
-    memset(IRP, -1, (M+1)*sizeof(int));
+    int empty_rows = 0;
+    int gap;
+    for( int i = 0; i < nz - 1; i++){
+        gap = I[i+1] - I[i];
+        if( gap > 1 ){
+            // empty row
+            empty_rows += gap - 1;
+        }
+    }
+    int *tmp_IRP = (int*)malloc((M+1)*sizeof(int)); //start position of each row
+    memset(tmp_IRP, -1, (M+1)*sizeof(int));
 
     /* build IRP vector */
     for (int i = 0; i<nz; i++)
     {
         int tmp = (int)(vIndex[i] / N);
-        if (IRP[tmp] == -1)
+        if (tmp_IRP[tmp] == -1)
         {
-            IRP[tmp] = i;
+            tmp_IRP[tmp] = i;
         }
 
     }
     // update last entry in IRP array with the greater one
-    IRP[M] = nz;
+    tmp_IRP[M] = nz;
+
+    printf("Empty rows: %d\n", empty_rows);
+    int *IRP;
+    if(empty_rows != 0){
+        IRP = (int*)malloc((M - empty_rows + 1)*sizeof(int)); //start position of each row
+        memset(IRP, -1, (M - empty_rows + 1)*sizeof(int));
+        int index = 0;
+        for(int i = 0; i < M + 1; i++){
+            if( tmp_IRP[i] != -1 ){
+                IRP[index] = tmp_IRP[i];
+                index++;
+            }
+        }
+        M -= empty_rows;
+
+    }else{
+        IRP = tmp_IRP;
+    }
+
 
     csr_mat = (struct Csr*) malloc(sizeof(struct Csr));
     csr_mat->M = M;
     csr_mat->N = N;
+    csr_mat->nz = nz;
     csr_mat->JA = J;
     csr_mat->AS = val;
     csr_mat->IRP = IRP;
-    csr_mat->nz = nz;
 
     free(vIndex);
 

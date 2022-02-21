@@ -82,7 +82,7 @@ def cpu_istogramma_speedup():
 				matrix[index] = speedup
 			cpu_ellpack[name] = matrix
 	
-	keys = [key for key in cpu_csr.keys()]
+	keys = [key[1:-4] for key in cpu_csr.keys()]
 	values = [value for value in cpu_csr.values()]
 	fig, ax = plt.subplots()
 	th4 = ax.bar(np.arange(len(keys)) - 0.3, [value[0] for value in values],
@@ -106,7 +106,7 @@ def cpu_istogramma_speedup():
 
 	plt.show()
 
-	ell_keys = [key for key in cpu_ellpack.keys()]
+	ell_keys = [key[1:-4] for key in cpu_ellpack.keys()]
 	ell_values = [value for value in cpu_ellpack.values()]
 	fig, ax = plt.subplots()
 	th4 = ax.bar(np.arange(len(ell_keys)) - 0.3, [value[0] for value in ell_values],
@@ -171,7 +171,7 @@ def gpu_istogramma_speedup():
 
 	#graficare
 
-	keys = [key for key in gpu_csr.keys()]
+	keys = [key[1:-4] for key in gpu_csr.keys()]
 	values = [value for value in gpu_csr.values()]
 	fig, ax = plt.subplots()
 	bs128 = ax.bar(np.arange(len(keys)) - 0.3, [value[0] for value in values],
@@ -195,7 +195,7 @@ def gpu_istogramma_speedup():
 
 	plt.show()
 
-	ell_keys = [key for key in gpu_ellpack.keys()]
+	ell_keys = [key[1:-4] for key in gpu_ellpack.keys()]
 	ell_values = [value for value in gpu_ellpack.values()]
 	fig, ax = plt.subplots()
 	bs128 = ax.bar(np.arange(len(ell_keys)) - 0.3, [value[0] for value in ell_values],
@@ -255,8 +255,7 @@ def cpu_grafico_gflop():
 			cpu_ellpack[name] = matrix
 
 	for key in cpu_csr.keys():
-		print(cpu_csr[key])
-		plt.plot(THREADS, cpu_csr[key], label=key)
+		plt.plot(THREADS, cpu_csr[key], label=key[1:-4])
 
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)
@@ -266,7 +265,7 @@ def cpu_grafico_gflop():
 	plt.show()
 
 	for key in cpu_ellpack.keys():
-		plt.plot(THREADS, cpu_ellpack[key], label=key)
+		plt.plot(THREADS, cpu_ellpack[key], label=key[1:-4])
 
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)
@@ -310,7 +309,7 @@ def gpu_grafico_gflop():
 			gpu_ellpack[name] = matrix
 
 	for key in gpu_csr.keys():
-		plt.plot(BLOCKS, gpu_csr[key], label=key)
+		plt.plot(BLOCKS, gpu_csr[key], label=key[1:-4])
 
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)
@@ -321,7 +320,7 @@ def gpu_grafico_gflop():
 
 
 	for key in gpu_ellpack.keys():
-		plt.plot(BLOCKS, gpu_ellpack[key], label=key)
+		plt.plot(BLOCKS, gpu_ellpack[key], label=key[1:-4])
 
 	plt.xlabel("Threads", fontsize=11)
 	plt.ylabel("FLOPS", fontsize=11)

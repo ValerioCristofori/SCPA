@@ -4,7 +4,10 @@
 #include "mmio.h"
 #include "utils.h"
 
-
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
 
 int load_matrix(char *matrix_filename, struct matrix *mat)
 {
@@ -12,8 +15,8 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
     FILE 			  *f;
 
 	int 		nz, M, N;
-	int 		  *I, *J;
-	double 			*val;
+	int 		  *I_tmp, *J_tmp;
+	double 			*val_tmp;
 
 	if ((f = fopen(matrix_filename, "r")) == NULL) 
         return -1;
@@ -38,16 +41,71 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
 
 
     /* allocate memory for matrix */
-    I = (int *) malloc(nz * sizeof(int));
-    J = (int *) malloc(nz * sizeof(int));
-    val = (double *) malloc(nz * sizeof(double));
+    I_tmp = (int *) malloc(nz * sizeof(int));
+    J_tmp = (int *) malloc(nz * sizeof(int));
+    val_tmp = (double *) malloc(nz * sizeof(double));
 
-    for (int i=0; i<nz; i++)
-    {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
-        I[i]--;  /* adjust from 1-based to 0-based */
-        J[i]--;
+    if( mm_is_pattern(matcode) ){
+        for (int i=0; i<nz; i++)
+        {
+            fscanf(f, "%d %d\n", &I_tmp[i], &J_tmp[i]);
+            val_tmp[i] = 1.0;
+            I_tmp[i]--;  /* adjust from 1-based to 0-based */
+            J_tmp[i]--;  
+        }
+
+    }else{
+        for (int i=0; i<nz; i++)
+        {
+            fscanf(f, "%d %d %lg\n", &I_tmp[i], &J_tmp[i], &val_tmp[i]);
+            I_tmp[i]--;  /* adjust from 1-based to 0-based */
+            J_tmp[i]--;
+            
+        }
+    }	    
+
+    int *I, *J;
+    double *val;
+
+    if( mm_is_symmetric(matcode) ){
+       
+        //count real non-zeros
+        int real_nz = nz;
+        for(int i=0; i<nz; i++){
+            if( I_tmp[i] != J_tmp[i] ){
+                real_nz += 1;
+            }
+        }
+        printf("real_nz: %d\n", real_nz);
+
+        I = (int *) malloc(real_nz * sizeof(int));
+        J = (int *) malloc(real_nz * sizeof(int));
+        val = (double *) malloc(real_nz * sizeof(double));
+
+        int nz_in_diag = 0;
+        for(int i=0; i<nz; i++){
+            I[i] = I_tmp[i];
+            J[i] = J_tmp[i];
+            val[i] = val_tmp[i];
+
+            if( I_tmp[i] != J_tmp[i] ){
+                I[nz + i - nz_in_diag] = J_tmp[i];
+                J[nz + i - nz_in_diag] = I_tmp[i];
+                val[nz + i - nz_in_diag] = val_tmp[i];
+            }else{
+                nz_in_diag++;
+            }
+        }
+
+        nz = real_nz;
+
+    }else{
+        I = I_tmp;
+        J = J_tmp;
+        val = val_tmp;
     }
+
+
 
     if (f !=stdin) fclose(f);
 
@@ -64,7 +122,7 @@ int load_matrix(char *matrix_filename, struct matrix *mat)
 }
 
 
-int load_vector(char *vector_filename, struct vector *vec, int M)
+int load_vector(char *vector_filename, struct vector *vec, int N)
 {
 
     FILE 			  *f;
@@ -78,9 +136,9 @@ int load_vector(char *vector_filename, struct vector *vec, int M)
         return -1;
     }
     fscanf(f, "%d\n", &xdim);
-    if (xdim > M)
+    if (xdim > N)
     {
-        xdim = M;
+        xdim = N;
     } else {
         printf("dimension vector too small!\n");
         return -1;
@@ -103,7 +161,8 @@ int load_vector(char *vector_filename, struct vector *vec, int M)
 /* sequential product calculation */
 void getmul(struct matrix *mat, struct vector *vec, double* res)
 {
-	int i; 
+	int i;
+
 	for (i = 0; i < mat->nz; i++)
 	{
 		int rInd = mat->I[i];
@@ -112,16 +171,68 @@ void getmul(struct matrix *mat, struct vector *vec, double* res)
 	}
 }
 
-bool checkerror(const double* resp, const double* ress, int dim)
+// calculate the relative difference and the absolute max difference
+    // between res[i] and res_seq[i] -> use for testing if the calculation is successful done
+int checkerror(struct Result* result, const double* res_seq, int dim_res_seq)
 {
 	int i;
-	for (i = 0; i < dim; i++)
-	{
-		if (resp[i] != ress[i])
-			return false;
-	}
+    int j = 0;
+    double *res = result->res;
+    int dim = result->len;
+    double maxabs;
+    double reldiff = 0.0;
+    double diff    = 0.0;
 
-	return true;
+    if( dim != dim_res_seq ){
+    	for (i = 0; i < dim_res_seq; i++)
+    	{
+    		
+            if(res_seq[i] == 0){
+                //empty row
+                if( res[j] != 0)
+                    continue;
+            }
+            maxabs = max( abs(res_seq[i]), abs(res[j]));
+            if (maxabs == 0.0) maxabs=1.0;
+            reldiff = max(reldiff, abs(res_seq[i] - res[j])/maxabs);
+            diff = max(diff, abs(res_seq[i] - res[j]));
+
+            if( res_seq[i] != res[j] ){
+                result->reldiff = reldiff;
+                result->diff    = diff;
+                return 0;
+            }
+            j++;
+    	}
+        if( j == dim ){
+            result->reldiff = reldiff;
+            result->diff    = diff;
+            return 1;
+        }
+    }else{
+
+        for (i = 0; i < dim; i++)
+        {
+            maxabs = max( abs(res_seq[i]), abs(res[i]));
+            if (maxabs == 0.0) maxabs=1.0;
+            reldiff = max(reldiff, abs(res_seq[i] - res[i])/maxabs);
+            diff = max(diff, abs(res_seq[i] - res[i]));
+
+            if( res_seq[i] != res[i] ){
+                result->reldiff = reldiff;
+                result->diff    = diff;
+                return 0;
+            }
+        }
+        result->reldiff = reldiff;
+        result->diff    = diff;
+        return 1;
+
+    }
+    result->reldiff = reldiff;
+    result->diff    = diff;
+
+	return 0;
 
 }
 

@@ -41,10 +41,14 @@ struct Result{
 	int 		len;			// length of the array
 	double     	elapsed_time;	// time in calculation
 	double 	 	gpuflops;		// floating point ops per sec
+	double 		reldiff;
+	double 		diff;
 };
 
 
 // ---------------- utils ------------------------
+
+int checkerror(struct Result* result, const double *res_seq, int dim_res_seq);
 
 void getmul(struct matrix *mat, struct vector *vec, double* res);
 
@@ -67,7 +71,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat);
 
 int load_matrix(char *matrix_filename, struct matrix* mat);
 
-int load_vector(char *vector_filename, struct vector* vec, int M);
+int load_vector(char *vector_filename, struct vector* vec, int N);
 
-int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, char* mode, FILE *fpt);
+int calculate_prod(struct matrix *mat, struct vector* vec, double *res_seq, int dim_res_seq, char* mode, FILE *fpt);
 
