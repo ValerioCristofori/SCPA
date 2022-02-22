@@ -20,19 +20,19 @@ struct Csr* preprocess_csr(struct matrix *mat)
     //preprocess the dataset to make the calculation can be parallelized
     /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
         of the non-zeros positions */ 
-    double *vIndex = (double*)malloc(nz*sizeof(double));
-    memset(vIndex, 0, nz*sizeof(double));
+    double *idxs = (double*)malloc(nz*sizeof(double));
+    memset(idxs, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
     {
-        vIndex[i] = (double)I[i] * N + J[i];
-        if (vIndex[i] < 0)
+        idxs[i] = (double)I[i] * N + J[i];
+        if (idxs[i] < 0)
         {   
-               printf("Error: %lg < 0\n", vIndex[i]);
+               printf("Error: %lg < 0\n", idxs[i]);
                return NULL;
             }
     }
     // order values vector
-    quicksort(val, vIndex, I, J, nz);
+    quicksort(val, idxs, I, J, nz);
 
     int empty_rows = 0;
     int gap;
@@ -49,7 +49,7 @@ struct Csr* preprocess_csr(struct matrix *mat)
     /* build IRP vector */
     for (int i = 0; i<nz; i++)
     {
-        int tmp = (int)(vIndex[i] / N);
+        int tmp = (int)(idxs[i] / N);
         if (tmp_IRP[tmp] == -1)
         {
             tmp_IRP[tmp] = i;
@@ -86,7 +86,7 @@ struct Csr* preprocess_csr(struct matrix *mat)
     csr_mat->AS = val;
     csr_mat->IRP = IRP;
 
-    free(vIndex);
+    free(idxs);
 
     return csr_mat;
 }
@@ -112,21 +112,21 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     //preprocess the dataset to make the calculation can be parallelized
     /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
         of the non-zeros positions */
-    double *vIndex = (double*)malloc(nz*sizeof(double));
-    memset(vIndex, 0, nz*sizeof(double));
+    double *idxs = (double*)malloc(nz*sizeof(double));
+    memset(idxs, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
     {
-        vIndex[i] = (double)I[i] * N + J[i];
-        if (vIndex[i] < 0)
+        idxs[i] = (double)I[i] * N + J[i];
+        if (idxs[i] < 0)
         {   
-               printf("Error: %lg < 0\n", vIndex[i]);
+               printf("Error: %lg < 0\n", idxs[i]);
                return NULL;
             }
     }
     // order values vector 
-    quicksort(val, vIndex, I, J, nz);
+    quicksort(val, idxs, I, J, nz);
 
-    free(vIndex);
+    free(idxs);
     
     // count maxnz in the current matrix 
     int count_nz = 1;

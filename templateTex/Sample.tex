@@ -23,48 +23,69 @@
 %\email{e-mail address}
 }
 
-\abstract{This sample is a guideline for preparing technical papers using \LaTeX\
-for manuscript submission. It contains the documentation for your \LaTeX\
-Class file, which implements the layout for your manuscript for all Journals of OUP.
-This sample article uses a class file named \texttt{ouparticle.cls} that all authors
-need to use for their manuscript preparation. It is similar in use to the \texttt{article}
-class file of \LaTeX, but has some extra fields in the preamble and some extended commands for
-other parts of the article.}
+\abstract{In questo documento vengono argomentate le scelte effettuate 
+per realizzare un nucleo di calcolo per il prodotto tra una matrice sparsa e un vettore.\\
+Vengono poi presentati e analizzati i risultati del calcolo.} 
 
-\date{24 Febbraio 2022}
+\date{AA 2021/2022}
 
 \maketitle
 
 \section{Introduzione}
 \label{sec1}
 
-It is assumed that the author is familiar with either plain
-\TeX, \AmS-\TeX{} or a standard \LaTeX\ setup and, hence,
-only the essential points are described in this document.
-Nevertheless, we hope that this document is generally sufficient
-for describing the requirements for preparation of
-manuscripts. For more details, please see the \textit{\LaTeX{} User's Guide} or
-\textit{The not so short introduction to \LaTeXe}.
+L'obiettivo è realizzare un nucleo di calcolo parallelo, con 2 tipi di parallelizzazione.\break
+La prima è basata su un'implementazione del concetto di multithreading su sistemi a memoria condivisa: OpenMP.
+La seconda è CUDA, ovvero un'API che permette l'uso di GPU per il calcolo parallelo (general-purpose computing su GPU).
+Ogni tipo di parallelizzazione viene poi confrontata con l'implementazione di un nucleo di calcolo seriale.\\
+La fase di calcolo è preceduta da una fase di preprocessamento e memorizzazione dal formato \verb+MatrixMarket+ ai formati di memorizzazione per matrici sparse: \verb+CSR+ e \verb+ELLPACK+.\\
+Le matrici usate per il test sono alcune matrici della “Suite Sparse Matrix Collection”, disponibili all'indirizzo \verb+https://sparse.tamu.edu/+.
 
 
-\section{Progettazione}
+\section{Preprocessamento}
 \label{sec2}
+\subsection{Caricamento e Formattazione}
+\label{sec2.1}
 
-Provided with \verb+ouparticle.cls+ are the files
-\verb+sample.tex+ (this document explains the various
-features of \verb+ouparticle.cls+) and \verb+sample.pdf+
-(how the output using \verb+sample.tex+ should be). Your
-paper can be compiled with standard \LaTeX,
-preferably with the current \LaTeXe\ version. It will probably work
-with older versions of \LaTeXe; however, this has not been
-tested. The file \verb+ouparticle.cls+ needs to be copied
-into a directory where \TeX\ looks for input files. The other files
-need to be kept as a reference while preparing
-your manuscript. Please use the predefined commands from \verb+sample.tex+ for title,
-authors, abstract, body, etc.
+Sono state usate le funzioni di libreria fornite all'indirizzo \verb+http://math.nist.gov/MatrixMarket/+ per caricare le matrici dal formato \verb+MatrixMarket+ dove vengono specificati il numero di righe \textit{M}, numero di colonne \textit{N}, e il numero di non zeri \textit{NZ}.\\
+Da notare che per le matrici simmetriche viene memorizzato su file solo un triangolo (superiore/inferiore), di conseguenza, in memoria, vengono ricostruiti gli array di indici di riga, colonna e valori dell'intera matrice, e aggiornato il numero dei \textit{NZ}.
+È stato aggiunto un controllo sulle matrici memorizzate come \textit{"pattern"}, popolando il vettore relativo ai valori nonzero di coefficienti di valore 1.0.\\\\
+Sono stati formati in memoria i seguenti vettori:\\
+\indent\textbf{I(1:NZ)}: Vettori degli indici di riga dei coefficienti nonzero\\
+\indent\textbf{J(1:NZ)}: Vettori degli indici di colonna dei coefficienti nonzero\\
+\indent\textbf{val(1:NZ)}: Vettori dei valori dei coefficienti nonzero\\
+Viene poi costruito un vettore di indici \textbf{idxs} della matrice, in modo tale che l'i-esima posizione sia relativa a \textit{I[i] * N + J[i]}. Vengono poi ordinati i vettori per indici di riga (si presuppone che i dati memorizzati su file siano ordinati per colonna). In questo modo il \textbf{idxs} risultante rappresenta gli indici dei valori nonzero della matrice, riga per riga.\\
 
 
-\section{Implementazione}
+\subsection{Formattazione CSR}
+\label{sec2.2}
+
+\textit{Compressed Storage by Rows}. In questo caso la matrice viene formattata nel seguente modo:\\
+\indent\textbf{IRP(1:M+1)}: Vettore dei puntatori all’inizio di ciascuna riga\\
+\indent\textbf{JA(1:NZ)}: Vettore degli indici di colonna\\
+\indent\textbf{AS(1:NZ)}: Vettore dei coefficienti\\
+Viene costruito il vettore \textit{IRP} partendo dal vettore \textit{idxs}. È stato tenuto conto della possibile presenza di matrici con righe senza valori nonzero che portavano ad un calcolo errato (con valori di \textit{IRP} a -1, come default): in questo caso le righe sono state scartate, ed è stato aggiornato il valore del numero di righe \textit{M}.
+
+\subsection{Formattazione ELLPACK}
+\label{sec2.3}
+
+In questo caso la matrice viene formattata nel seguente modo:\\
+\textbf{JA(1:M,1:maxnz)}: array 2D di indici di colonna\\
+\textbf{AS(1:M,1:maxnz)}: array 2D di coefficienti\\
+La formattazione ELLPACK differisce dalla tipologia di parallelizzazione:
+\subsubsection{Formattazione ELLPACK per OpenMP}
+\label{sec2.3.1}
+Nel caso di formattazione ELLPACK per parallelizzazione con OpenMP il valore di \textit{maxnz} è fisso e pari al massimo valore di nonzeri per riga, su tutte le righe. Una volta trovato il valore \textit{maxnz} si popolano i vettori \textit{JA} e \textit{AS}.\\
+Da notare che per ogni riga che conta un numero di nonzeri minore di \textit{maxnz} i rispettivi coefficienti sono nulli per \textit{AS} e sono uguali all'ultimo indice valido incontrato lungo la riga per \textit{JA}.\\
+
+
+\subsubsection{Formattazione ELLPACK per CUDA}
+\label{sec2.3.2}
+Per quanto riguarda CUDA invece oltre a trovare il valore \textit{maxnz} e inizializzare i vettori \textit{JA} e \textit{AS} viene costruito anche il vettore \textbf{MAXNZ(1:M)}, vettore di numeri di nonzeri per ogni riga.\\
+Successivamente viene eseguita la trasposizione degli array 2D \textit{JA} e \textit{AS}. Rendendo trasposti i dati i coefficienti di ciascuna colonna risultano adiacenti in memoria essendo \textit{C} un linguaggio con memorizzazione per righe.\\
+
+
+\section{Nucleo di calcolo}
 \label{sec3}
 
 \subsection{Calcolo Seriale}
@@ -74,7 +95,9 @@ authors, abstract, body, etc.
 \begin{center}
 \begin{tabular}{|| c | c | c ||} 
 \hline
-Matrice & Speedup CPU & d \\ [1ex]
+ & \multicolumn{2}{c||}{Speedup CPU}\\
+\hline
+Matrice&CSR&ELLPACK\\
 \hline
 adder\_dcop\_32 & 0.21 & 0.01 \\
 \hline
@@ -96,7 +119,7 @@ cop20k\_A & 7.09 & 2.66 \\
 \hline
 Cube\_Coup\_dt0 & 10.14 & 7.99 \\
 \hline
-dc1 & 2.31 &  \\
+dc1 & 2.31 & nd \\
 \hline
 FEM\_3D\_thermal1 & 2.28 & 2.39 \\
 \hline
@@ -132,7 +155,7 @@ thermal2 & 3.93 & 5.57 \\
 \hline
 thermomech\_TK & 4.53 & 4.24 \\
 \hline
-webbase-1M & 6.09 &  \\
+webbase-1M & 6.09 & nd \\
 \hline
 west2021 & 0.10 & 0.08 \\
 \hline
@@ -144,7 +167,9 @@ west2021 & 0.10 & 0.08 \\
 \begin{center}
 \begin{tabular}{|| c | c | c ||} 
 \hline
-Matrice & Speedup GPU \\ [1ex]
+ & \multicolumn{2}{c||}{Speedup GPU}\\
+\hline
+Matrice&CSR&ELLPACK\\
 \hline
 adder\_dcop\_32 & 1.78 & 0.78 \\
 \hline
@@ -166,7 +191,7 @@ cop20k\_A & 50.65 & 69.95 \\
 \hline
 Cube\_Coup\_dt0 & 110.93 & 119.84 \\
 \hline
-dc1 & 8.32 &  \\
+dc1 & 8.32 & nd \\
 \hline
 FEM\_3D\_thermal1 & 28.77 & 61.26 \\
 \hline
@@ -202,7 +227,7 @@ thermal2 & 30.21 & 111.85 \\
 \hline
 thermomech\_TK & 21.35 & 48.29 \\
 \hline
-webbase-1M & 13.11 &  \\
+webbase-1M & 13.11 & nd \\
 \hline
 west2021 & 0.70 & 2.00 \\
 \hline
@@ -213,7 +238,9 @@ west2021 & 0.70 & 2.00 \\
 \begin{center}
 \begin{tabular}{|| c | c | c ||} 
 \hline
-Matrice & GFlops CPU \\ [1ex]
+ & \multicolumn{2}{c||}{GFlops CPU}\\
+\hline
+Matrice&CSR&ELLPACK\\
 \hline
 adder\_dcop\_32 & 0.04 & 0.00 \\
 \hline
@@ -235,7 +262,7 @@ cop20k\_A & 2.26 & 0.86 \\
 \hline
 Cube\_Coup\_dt0 & 5.04 & 3.99 \\
 \hline
-dc1 & 0.86 &  \\
+dc1 & 0.86 & nd \\
 \hline
 FEM\_3D\_thermal1 & 0.92 & 0.94 \\
 \hline
@@ -271,7 +298,7 @@ thermal2 & 0.93 & 1.60 \\
 \hline
 thermomech\_TK & 1.13 & 0.99 \\
 \hline
-webbase-1M & 1.66 &  \\
+webbase-1M & 1.66 & nd \\
 \hline
 west2021 & 0.03 & 0.03 \\
 \hline
@@ -282,7 +309,9 @@ west2021 & 0.03 & 0.03 \\
 \begin{center}
 \begin{tabular}{|| c | c | c ||} 
 \hline
-Matrice & GFlops GPU \\ [1ex]
+ & \multicolumn{2}{c||}{GFlops GPU}\\
+\hline
+Matrice&CSR&ELLPACK\\
 \hline
 adder\_dcop\_32 & 0.44 & 0.19 \\
 \hline
@@ -304,7 +333,7 @@ cop20k\_A & 18.10 & 24.99 \\
 \hline
 Cube\_Coup\_dt0 & 53.89 & 58.22 \\
 \hline
-dc1 & 3.30 &  \\
+dc1 & 3.30 & nd\\
 \hline
 FEM\_3D\_thermal1 & 13.05 & 27.79 \\
 \hline
@@ -340,7 +369,7 @@ thermal2 & 8.91 & 33.00 \\
 \hline
 thermomech\_TK & 5.67 & 12.82 \\
 \hline
-webbase-1M & 3.89 &  \\
+webbase-1M & 3.89 & nd \\
 \hline
 west2021 & 0.23 & 0.67 \\
 \hline
@@ -446,7 +475,70 @@ Smith, I.N., R.S. Johnes, and W.P. Hines: 1992, `Title of the Article',
 \hspace*{-2.5cm} 
 \centering
 \includegraphics[width=20.5cm]{cpu-gpu-speedup-CSR}
-\caption{here}
+\caption{Speedup tra CPU e GPU del calcolo con formato CSR}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{cpu-gpu-speedup-ELLPACK}
+\caption{Speedup tra CPU e GPU del calcolo con formato ELLPACK}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{CPU-CSR-speedup}
+\caption{Speedup calcolo su CPU con formato CSR}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{CPU-ELLPACK-speedup}
+\caption{Speedup calcolo su CPU con formato ELLPACK}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{GPU-CSR-speedup}
+\caption{Speedup calcolo su GPU con formato CSR}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{GPU-ELLPACK-speedup}
+\caption{Speedup calcolo su GPU con formato ELLPACK}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{CPU-CSR-threads}
+\caption{GFLOPS al variare dei threads nel calcolo su CPU con formato CSR}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{CPU-ELLPACK-threads}
+\caption{GFLOPS al variare dei threads nel calcolo su CPU con formato ELLPACK}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{GPU-CSR-blocksize}
+\caption{GFLOPS al variare della dimensione del blocco nel calcolo su GPU con formato CSR}
+\end{figure}
+
+\begin{figure}[h]
+\hspace*{-2.5cm} 
+\centering
+\includegraphics[width=20.5cm]{GPU-ELLPACK-blocksize}
+\caption{GFLOPS al variare della dimensione del blocco nel calcolo su GPU con formato ELLPACK}
 \end{figure}
 
 
