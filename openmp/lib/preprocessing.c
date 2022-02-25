@@ -108,7 +108,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
 
     //preprocess the dataset to make the calculation can be parallelized
     /* build vector of Index that specify a vector 1D of the corresponding matrix 2D
-        of the non-zeros positions */ 
+        of the non-zeros positions */
     double *idxs = (double*)malloc(nz*sizeof(double));
     memset(idxs, 0, nz*sizeof(double));
     for (int i = 0; i < nz; i++)
@@ -120,11 +120,11 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
                return NULL;
             }
     }
-    // order values vector
+    // order values vector 
     quicksort(val, idxs, I, J, nz);
 
     free(idxs);
-    
+
     // count maxnz in the current matrix 
     int count_nz = 1;
     for (int i = 0; i<nz-1; i++)

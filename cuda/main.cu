@@ -19,6 +19,8 @@
 
 #define WARP_SIZE       32
 
+#define ITERATION 3
+
 
 
 const dim3 BLOCK_DIM(BLOCK_SIZE);
@@ -31,40 +33,43 @@ __global__ void kernel_csr(const double * AS, //values
                                     double * results,
                                     const int num_rows)
 {
-    __shared__ double   sdata[ BLOCK_SIZE + 16 ];          // padded to avoid reduction ifs
+    __shared__ double   sdata[ BLOCK_SIZE ];
     __shared__ int       ptrs[ BLOCK_SIZE / WARP_SIZE ][2];
     
-    const int thread_id   = BLOCK_SIZE * blockIdx.x + threadIdx.x;    // global thread index
-    const int thread_lane = threadIdx.x & ( WARP_SIZE - 1);           // thread index within the warp
-    const int warp_id     = thread_id   /  WARP_SIZE ;                // global warp index
-    const int warp_lane   = threadIdx.x /  WARP_SIZE ;                // warp index within the CTA
-    const int num_warps   = ( BLOCK_SIZE  /  WARP_SIZE ) * gridDim.x; // total number of active warps
+    const int thread_id       = BLOCK_SIZE * blockIdx.x + threadIdx.x;      // global thread index
+    const int thread_in_warp  = threadIdx.x & ( WARP_SIZE - 1);             // thread index within the warp
+    const int warp_id         = thread_id   /  WARP_SIZE ;                  // global warp index
+    const int warp_in_block   = threadIdx.x /  WARP_SIZE ;                  // warp index within the Block
+    const int num_warps       = ( BLOCK_SIZE  /  WARP_SIZE ) * gridDim.x;   // total number of active warps
 
+    //iterate over rows
+    //every row is processed by a single warp 
     for(int row = warp_id; row < num_rows; row += num_warps){
-        // use two threads to fetch IRP[row] and IRP[row+1] // vector pointers
-        // this is considerably faster than the straightforward version
-        if(thread_lane < 2)
-            ptrs[warp_lane][thread_lane] = IRP[row + thread_lane];
-        const int row_start = ptrs[warp_lane][0];            //same as: row_start = IRP[row];
-        const int row_end   = ptrs[warp_lane][1];            //same as: row_end   = IRP[row+1];
+        // the first two threads of the warp are responsible 
+        // to fetch IRP[row] and IRP[row+1]
+        if(thread_in_warp < 2)
+            ptrs[warp_in_block][thread_in_warp] = IRP[row + thread_in_warp]; //update the ptrs vector of row-start and row-end
+        int row_start = ptrs[warp_in_block][0];            //row_start = IRP[row];
+        int row_end   = ptrs[warp_in_block][1];            //row_end   = IRP[row+1];
 
         // compute local sum
         double sum = 0;
-        for(int j = row_start + thread_lane; j < row_end; j += WARP_SIZE)
+        for(int j = row_start + thread_in_warp; j < row_end; j += WARP_SIZE)
         {
             sum += AS[j] * X[JA[j]];
         }
 
         volatile double* smem = sdata;
-        smem[threadIdx.x] = sum; __syncthreads(); 
+        smem[threadIdx.x] = sum; __syncthreads(); // reduction
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x + 16];
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x +  8];
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x +  4];
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x +  2];
         smem[threadIdx.x] = sum = sum + smem[threadIdx.x +  1];
 
-        // first thread writes warp result
-        if (thread_lane == 0){
+        // first thread in warp
+        // writes warp result
+        if (thread_in_warp == 0){
             results[row] = smem[threadIdx.x];
         }
     }
@@ -162,22 +167,25 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     checkCudaErrors(cudaMemcpy(d_IRP, IRP, (M+1)*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_X, X, N*sizeof(double), cudaMemcpyHostToDevice));
 
+    double elapsed_time = 0.0;
+    for(int i = 0; i < ITERATION; i++){
+        // start timer
+        // Create the CUDA SDK timer.
+        StopWatchInterface* timer = 0;
+        sdkCreateTimer(&timer);
+        timer->start();
 
-    // start timer
-    // Create the CUDA SDK timer.
-    StopWatchInterface* timer = 0;
-    sdkCreateTimer(&timer);
+        //-------------------------- call Kernel -----------------------------------------
+        kernel_csr<<<GRID_DIM, BLOCK_DIM>>>(d_AS, d_JA, d_IRP, d_X, d_res, M);
+        checkCudaErrors(cudaDeviceSynchronize());
 
-    timer->start();
-
-    //-------------------------- call Kernel -----------------------------------------
-    kernel_csr<<<GRID_DIM, BLOCK_DIM>>>(d_AS, d_JA, d_IRP, d_X, d_res, M);
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    timer->stop();
-    double elapsed_time = timer->getTime();
-    double gpuflops=flopcnt/ elapsed_time;
-    std::cout << "  GPU time: " << elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
+        timer->stop();
+        elapsed_time += timer->getTime();
+        delete timer;
+    }
+    double avg_elapsed_time = elapsed_time/ITERATION;
+    double gpuflops=flopcnt/ avg_elapsed_time;
+    std::cout << "  GPU time: " << avg_elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
 
     /* allocate memory for result vector 
         download the resulting vector d_res 
@@ -186,7 +194,6 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     memset(res, 0, M*sizeof(double));
     checkCudaErrors(cudaMemcpy(res, d_res, M*sizeof(double),cudaMemcpyDeviceToHost));
 
-    delete timer;
 
     checkCudaErrors(cudaFree(d_AS));
     checkCudaErrors(cudaFree(d_JA));
@@ -197,7 +204,7 @@ struct Result* module_cuda_csr(struct Csr* csr_mat, struct vector* vec)
     struct Result* res_cuda_csr = (struct Result*) malloc(sizeof(struct Result));
     res_cuda_csr->res = res;
     res_cuda_csr->len = M;
-    res_cuda_csr->elapsed_time = elapsed_time;
+    res_cuda_csr->elapsed_time = avg_elapsed_time;
     res_cuda_csr->gpuflops = gpuflops;
 
     return res_cuda_csr;
@@ -245,22 +252,26 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     checkCudaErrors(cudaMemcpy(d_MAXNZ, MAXNZ, M*sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_X, X, N*sizeof(double), cudaMemcpyHostToDevice));
 
+    double elapsed_time = 0.0;
+    for(int i=0; i<ITERATION; i++){
+        // start timer
+        // Create the CUDA SDK timer.
+        StopWatchInterface* timer = 0;
+        sdkCreateTimer(&timer);
 
-    // start timer
-    // Create the CUDA SDK timer.
-    StopWatchInterface* timer = 0;
-    sdkCreateTimer(&timer);
+        timer->start();
 
-    timer->start();
+        //-------------------------- call Kernel -----------------------------------------
+        kernel_ellpack<<<GRID_DIM, BLOCK_DIM>>>(d_AS_t, d_JA_t, d_MAXNZ, d_X, d_res, M);
+        checkCudaErrors(cudaDeviceSynchronize());
 
-    //-------------------------- call Kernel -----------------------------------------
-    kernel_ellpack<<<GRID_DIM, BLOCK_DIM>>>(d_AS_t, d_JA_t, d_MAXNZ, d_X, d_res, M);
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    timer->stop();
-    double elapsed_time = timer->getTime();
-    double gpuflops=flopcnt/ elapsed_time;
-    std::cout << "  GPU time: " << elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
+        timer->stop();
+        elapsed_time += timer->getTime();
+        delete timer;
+    }
+    double avg_elapsed_time = elapsed_time/ITERATION;
+    double gpuflops=flopcnt/ avg_elapsed_time;
+    std::cout << "  GPU time: " << avg_elapsed_time << " ms." << " GFLOPS " << gpuflops<<std::endl;
 
     /* allocate memory for result vector 
         download the resulting vector d_res 
@@ -274,7 +285,7 @@ struct Result* module_cuda_ellpack(struct Ellpack* ellpack_mat, struct vector* v
     struct Result* res_cuda_ellpack = (struct Result*) malloc(sizeof(struct Result));
     res_cuda_ellpack->res = res;
     res_cuda_ellpack->len = M;
-    res_cuda_ellpack->elapsed_time = elapsed_time;
+    res_cuda_ellpack->elapsed_time = avg_elapsed_time;
     res_cuda_ellpack->gpuflops = gpuflops;
 
     return res_cuda_ellpack;

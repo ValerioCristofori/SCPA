@@ -127,7 +127,7 @@ struct Ellpack* preprocess_ellpack(struct matrix *mat)
     quicksort(val, idxs, I, J, nz);
 
     free(idxs);
-    
+
     // count maxnz in the current matrix 
     int count_nz = 1;
     for (int i = 0; i<nz-1; i++)

@@ -133,9 +133,8 @@ def cpu_istogramma_speedup():
 	       [value[3] for value in values],
 	       width=0.2, color='orange', align='center')
 	ax.legend([th4, th8, th16, th32], ['4 threads', '8 threads', '16 threads', '32 threads'])
-	ax.set_xticklabels(keys, rotation='vertical', fontsize=8)
-	ax.set_xticks(np.arange(len(keys)), rotation='vertical', fontsize=8)
-	
+	ax.set_xticklabels(keys, rotation='vertical')
+	ax.set_xticks(np.arange(len(keys)), rotation='vertical')
 	plt.xlabel("Matrice", fontsize=11)
 	plt.ylabel("Speedup", fontsize=11)
 	plt.title("CPU CSR performance", fontsize=13)
@@ -159,8 +158,8 @@ def cpu_istogramma_speedup():
 	       [value[3] for value in ell_values],
 	       width=0.2, color='orange', align='center')
 	ax.legend([th4, th8, th16, th32], ['4 threads', '8 threads', '16 threads', '32 threads'])
-	ax.set_xticklabels(ell_keys, rotation='vertical', fontsize=8)
-	ax.set_xticks(np.arange(len(ell_keys)), rotation='vertical', fontsize=8)
+	ax.set_xticklabels(ell_keys, rotation='vertical')
+	ax.set_xticks(np.arange(len(ell_keys)), rotation='vertical')
 	plt.xlabel("Matrice", fontsize=11)
 	plt.ylabel("Speedup", fontsize=11)
 	plt.title("CPU ELLPACK performance", fontsize=13)
@@ -228,9 +227,8 @@ def gpu_istogramma_speedup():
 	       [value[3] for value in values],
 	       width=0.2, color='orange', align='center')
 	ax.legend([bs128, bs256, bs512, bs1024], ['128 threads per blocco', '256 threads per blocco', '512 threads per blocco', '1024 threads per blocco'])
-	ax.set_xticklabels(keys, rotation='vertical', fontsize=8)
-	ax.set_xticks(np.arange(len(keys)), rotation='vertical', fontsize=8)
-	
+	ax.set_xticklabels(keys, rotation='vertical')
+	ax.set_xticks(np.arange(len(keys)), rotation='vertical')
 	plt.xlabel("Matrice", fontsize=11)
 	plt.ylabel("Speedup", fontsize=11)
 	plt.title("GPU CSR performance", fontsize=13)
@@ -252,9 +250,8 @@ def gpu_istogramma_speedup():
 	       [value[3] for value in ell_values],
 	       width=0.2, color='orange', align='center')
 	ax.legend([bs128, bs256, bs512, bs1024], ['128 threads per blocco', '256 threads per blocco', '512 threads per blocco', '1024 threads per blocco'])
-	ax.set_xticklabels(ell_keys, rotation='vertical', fontsize=8)
-	ax.set_xticks(np.arange(len(ell_keys)), rotation='vertical', fontsize=8)
-	
+	ax.set_xticklabels(ell_keys, rotation='vertical')
+	ax.set_xticks(np.arange(len(ell_keys)), rotation='vertical')
 	plt.xlabel("Matrice", fontsize=11)
 	plt.ylabel("Speedup", fontsize=11)
 	plt.title("GPU ELLPACK performance", fontsize=13)
