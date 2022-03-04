@@ -9,7 +9,7 @@
 /* openmp divides the iteration into chunk and distributes
     Each thread executes a chunk of iterations
 and then requests another chunk until there are no more chunks available. */
-#define CHUNK_SIZE 1000
+#define CHUNK_SIZE 16385 
 
 #define ITERATION 3
 
